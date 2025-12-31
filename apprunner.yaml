@@ -2,19 +2,12 @@ version: 1.0
 runtime: go1
 build:
   commands:
-    pre-build:
-      - echo "Installing dependencies..."
     build:
-      - echo "Building Go application..."
       - go build -o electric-backend-server main.go
-    post-build:
-      - echo "Build completed"
 run:
-  runtime-version: "1.20"
   command: ./electric-backend-server
   network:
     port: 4000
-    env: PORT
   env:
     - name: PORT
       value: "4000"
