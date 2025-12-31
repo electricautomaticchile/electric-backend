@@ -1,0 +1,43 @@
+version: '3.8'
+
+services:
+  electric-backend:
+    build: .
+    ports:
+      - "4000:4000"
+    environment:
+      - PORT=4000
+      - MONGODB_URI=mongodb://mongo:27017/electricautomaticchile
+      - JWT_SECRET=secret_key_dev
+      - NODE_ENV=development
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - CORS_ORIGINS=http://localhost:3000
+    depends_on:
+      - mongo
+      - redis
+    networks:
+      - electric-network
+
+  mongo:
+    image: mongo:7
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo-data:/data/db
+    networks:
+      - electric-network
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    networks:
+      - electric-network
+
+networks:
+  electric-network:
+    driver: bridge
+
+volumes:
+  mongo-data:
