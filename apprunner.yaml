@@ -8,18 +8,3 @@ run:
   command: ./electric-backend-server
   network:
     port: 4000
-  env:
-    - name: PORT
-      value: "4000"
-    - name: GIN_MODE
-      value: "release"
-    - name: MONGODB_URI
-      value: "mongodb+srv://electricautomaticchile:stackmern@formulario-contacto.73mcwpu.mongodb.net/electricautomaticchile?retryWrites=true&w=majority&appName=formulario-contacto"
-    - name: JWT_SECRET
-      value: "Fn8Q3x9P5dCsT7a2R4zWkLm6E0bVjYhN"
-    - name: ARDUINO_ENABLED
-      value: "false"
-    - name: FRONTEND_URL
-      value: "http://localhost:3000"
-    - name: CORS_ORIGINS
-      value: "http://localhost:3000"
