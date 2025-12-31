@@ -1,20 +1,18 @@
-# Binaries
+# Binaries for programs and plugins
 *.exe
 *.exe~
 *.dll
 *.so
 *.dylib
-electric-backend
-main
 
-# Test binary
+# Test binary, built with `go test -c`
 *.test
 
 # Output of the go coverage tool
-*.out
+go.sum
 
-# Dependency directories
-vendor/
+# Dependency directories (remove the comment below to include it)
+# vendor/
 
 # Go workspace file
 go.work
@@ -22,6 +20,11 @@ go.work
 # Environment variables
 .env
 .env.local
+.env.production
+
+# Logs
+logs/
+*.log
 
 # IDE
 .vscode/
@@ -30,10 +33,15 @@ go.work
 *.swo
 *~
 
-# Logs
-logs/
-*.log
-
 # OS
 .DS_Store
 Thumbs.db
+
+# Build output
+electric-backend
+electric-backend-server
+tmp/
+
+# Air live reload
+.air.toml
+tmp/
