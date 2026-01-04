@@ -51,20 +51,38 @@ func (ctrl *AuthController) Login(gctx *gin.Context) {
 		return
 	}
 
-	// Setear cookie httpOnly con el token
 	gctx.SetCookie(
-		"auth_token",           // nombre
-		result.Token,           // valor
-		86400,                  // maxAge en segundos (24 horas)
-		"/",                    // path
-		"",                     // domain (vacío = dominio actual)
-		false,                  // secure (true en producción con HTTPS)
-		true,                   // httpOnly (no accesible desde JavaScript)
+		"auth_token",
+		result.Token,
+		86400,
+		"/",
+		"",
+		false,
+		true,
 	)
+
+	requiereCambioPassword := result.User.PasswordTemporal != ""
+	
+	if requiereCambioPassword {
+		gctx.SetCookie(
+			"requiereCambioPassword",
+			"true",
+			86400,
+			"/",
+			"",
+			false,
+			false,
+		)
+	}
 
 	gctx.JSON(http.StatusOK, types.ApiResponse{
 		Success: true,
-		Data:    result,
+		Data: gin.H{
+			"token":                  result.Token,
+			"refreshToken":           result.RefreshToken,
+			"user":                   result.User,
+			"requiereCambioPassword": requiereCambioPassword,
+		},
 	})
 }
 
@@ -115,6 +133,16 @@ func (ctrl *AuthController) CambiarPassword(gctx *gin.Context) {
 		gctx.Error(err)
 		return
 	}
+
+	gctx.SetCookie(
+		"requiereCambioPassword",
+		"",
+		-1,
+		"/",
+		"",
+		false,
+		false,
+	)
 
 	gctx.JSON(http.StatusOK, types.ApiResponse{
 		Success: true,

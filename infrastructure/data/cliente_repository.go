@@ -56,24 +56,30 @@ func (r *ClienteRepository) entityToModel(entity *entities.ClienteEntity) *model
 		correo = entity.Email
 	}
 
+	passwordTemporal := ""
+	if entity.PasswordTemporal {
+		passwordTemporal = "true"
+	}
+
 	model := &models.ClienteModel{
-		ID:              entity.ID.Hex(),
-		Nombre:          entity.Nombre,
-		Correo:          correo,
-		NumeroCliente:   entity.NumeroCliente,
-		Password:        entity.Password,
-		Telefono:        entity.Telefono,
-		Direccion:       entity.Direccion,
-		Ciudad:          entity.Ciudad,
-		Rut:             entity.Rut,
-		TipoCliente:     entity.TipoCliente,
-		Empresa:         entity.Empresa,
-		Role:            entity.Role,
-		TipoUsuario:     entity.TipoUsuario,
-		Activo:          entity.Activo,
-		FechaRegistro:   fechaCreacion,
-		FechaActivacion: fechaActivacion,
-		UltimoAcceso:    ultimoAcceso,
+		ID:               entity.ID.Hex(),
+		Nombre:           entity.Nombre,
+		Correo:           correo,
+		NumeroCliente:    entity.NumeroCliente,
+		Password:         entity.Password,
+		PasswordTemporal: passwordTemporal,
+		Telefono:         entity.Telefono,
+		Direccion:        entity.Direccion,
+		Ciudad:           entity.Ciudad,
+		Rut:              entity.Rut,
+		TipoCliente:      entity.TipoCliente,
+		Empresa:          entity.Empresa,
+		Role:             entity.Role,
+		TipoUsuario:      entity.TipoUsuario,
+		Activo:           entity.Activo,
+		FechaRegistro:    fechaCreacion,
+		FechaActivacion:  fechaActivacion,
+		UltimoAcceso:     ultimoAcceso,
 	}
 
 	if !entity.EmpresaID.IsZero() {

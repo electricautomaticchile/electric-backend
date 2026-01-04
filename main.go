@@ -133,7 +133,7 @@ func main() {
 	cotizacionController := controllers.NewCotizacionController(cotizacionFacade)
 	wsController := controllers.NewWebSocketController(wsHub)
 	arduinoController := controllers.NewArduinoController(arduinoBridge)
-	dashboardClienteController := controllers.NewDashboardClienteController(clienteFacade, dispositivoFacade)
+	dashboardClienteController := controllers.NewDashboardClienteController(clienteFacade, dispositivoFacade, boletaService, estadisticaService)
 
 	api := router.Group("/api")
 	{
