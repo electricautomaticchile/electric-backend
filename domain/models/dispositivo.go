@@ -33,6 +33,9 @@ type DispositivoModel struct {
 	ClienteID          string                      `json:"clienteId,omitempty"`
 	EmpresaID          string                      `json:"empresaId,omitempty"`
 	Estado             string                      `json:"estado,omitempty"`
+	Latitud            float64                     `json:"latitud,omitempty"`
+	Longitud           float64                     `json:"longitud,omitempty"`
+	Direccion          string                      `json:"direccion,omitempty"`
 	UltimaLectura      *LecturaDispositivoModel    `json:"ultimaLectura,omitempty"`
 	Configuracion      map[string]interface{}      `json:"configuracion,omitempty"`
 	Activo             bool                        `json:"activo"`

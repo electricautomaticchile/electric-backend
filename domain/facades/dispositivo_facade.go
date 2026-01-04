@@ -37,6 +37,10 @@ func (f *DispositivoFacade) Actualizar(ctx context.Context, id string, r *recipe
 	return f.dispositivoService.Actualizar(ctx, id, r)
 }
 
+func (f *DispositivoFacade) AsignarCliente(ctx context.Context, id string, clienteID string) (*models.DispositivoModel, error) {
+	return f.dispositivoService.AsignarCliente(ctx, id, clienteID)
+}
+
 func (f *DispositivoFacade) ActualizarUltimaLectura(ctx context.Context, numeroDispositivo string, r *recipe.ActualizarLecturaRecipe) error {
 	return f.dispositivoService.ActualizarUltimaLectura(ctx, numeroDispositivo, r)
 }

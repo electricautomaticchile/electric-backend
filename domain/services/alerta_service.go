@@ -8,12 +8,14 @@ import (
 )
 
 type AlertaService struct {
-	alertaRepo ports.PortAlerta
+	alertaRepo       ports.PortAlerta
+	wsNotifier       *WebSocketNotifierService
 }
 
-func NewAlertaService(alertaRepo ports.PortAlerta) *AlertaService {
+func NewAlertaService(alertaRepo ports.PortAlerta, wsNotifier *WebSocketNotifierService) *AlertaService {
 	return &AlertaService{
 		alertaRepo: alertaRepo,
+		wsNotifier: wsNotifier,
 	}
 }
 

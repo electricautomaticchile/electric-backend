@@ -1,9 +1,9 @@
 package entities
 
 import (
-"time"
+	"time"
 
-"go.mongodb.org/mongo-driver/bson/primitive"
+	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
 type TicketEntity struct {
@@ -13,7 +13,9 @@ type TicketEntity struct {
 	Descripcion    string             `bson:"descripcion" json:"descripcion"`
 	Estado         string             `bson:"estado" json:"estado"`
 	Prioridad      string             `bson:"prioridad" json:"prioridad"`
+	Categoria      string             `bson:"categoria" json:"categoria"`
 	ClienteID      primitive.ObjectID `bson:"clienteId,omitempty" json:"clienteId,omitempty"`
+	EmpresaID      primitive.ObjectID `bson:"empresaId,omitempty" json:"empresaId,omitempty"`
 	Respuestas     []RespuestaTicket  `bson:"respuestas" json:"respuestas"`
 	FechaCreacion  time.Time          `bson:"fechaCreacion" json:"fechaCreacion"`
 }

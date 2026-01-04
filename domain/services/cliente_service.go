@@ -147,3 +147,28 @@ func (s *ClienteService) Actualizar(ctx context.Context, id string, r *recipe.Ac
 func (s *ClienteService) Eliminar(ctx context.Context, id string) error {
 	return s.clienteRepo.Delete(ctx, id)
 }
+
+func (s *ClienteService) ObtenerClientesConUbicacion(ctx context.Context, empresaID string) ([]map[string]interface{}, error) {
+	clientes, err := s.clienteRepo.FindAll(ctx, empresaID)
+	if err != nil {
+		return []map[string]interface{}{}, nil
+	}
+
+	resultado := make([]map[string]interface{}, 0)
+	for _, c := range clientes {
+		if c.Latitud != 0 && c.Longitud != 0 {
+			resultado = append(resultado, map[string]interface{}{
+				"id":            c.ID,
+				"nombre":        c.Nombre,
+				"numeroCliente": c.NumeroCliente,
+				"direccion":     c.Direccion,
+				"ciudad":        c.Ciudad,
+				"latitud":       c.Latitud,
+				"longitud":      c.Longitud,
+				"activo":        c.Activo,
+			})
+		}
+	}
+
+	return resultado, nil
+}

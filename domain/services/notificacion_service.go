@@ -1,22 +1,24 @@
 package services
 
 import (
-"context"
-"electric-backend/api/v1/recipe"
-"electric-backend/domain/models"
-"electric-backend/domain/ports"
-"electric-backend/infrastructure/entities"
+	"context"
+	"electric-backend/api/v1/recipe"
+	"electric-backend/domain/models"
+	"electric-backend/domain/ports"
+	"electric-backend/infrastructure/entities"
 
-"go.mongodb.org/mongo-driver/bson/primitive"
+	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
 type NotificacionService struct {
 	notificacionRepo ports.PortNotificacion
+	wsNotifier       *WebSocketNotifierService
 }
 
-func NewNotificacionService(notificacionRepo ports.PortNotificacion) *NotificacionService {
+func NewNotificacionService(notificacionRepo ports.PortNotificacion, wsNotifier *WebSocketNotifierService) *NotificacionService {
 	return &NotificacionService{
 		notificacionRepo: notificacionRepo,
+		wsNotifier:       wsNotifier,
 	}
 }
 
@@ -58,6 +60,10 @@ func (s *NotificacionService) Crear(ctx context.Context, r *recipe.CrearNotifica
 
 	if err := s.notificacionRepo.Create(ctx, entity); err != nil {
 		return nil, err
+	}
+
+	if s.wsNotifier != nil {
+		s.wsNotifier.NotificarNuevaNotificacion(entity)
 	}
 
 	return s.entityToModel(entity), nil

@@ -14,6 +14,9 @@ type DispositivoEntity struct {
 	ClienteID           primitive.ObjectID `bson:"clienteId" json:"clienteId"`
 	EmpresaID           primitive.ObjectID `bson:"empresaId" json:"empresaId"`
 	Estado              string             `bson:"estado" json:"estado"`
+	Latitud             float64            `bson:"latitud,omitempty" json:"latitud,omitempty"`
+	Longitud            float64            `bson:"longitud,omitempty" json:"longitud,omitempty"`
+	Direccion           string             `bson:"direccion,omitempty" json:"direccion,omitempty"`
 	UltimaLectura       *LecturaDispositivo `bson:"ultimaLectura,omitempty" json:"ultimaLectura,omitempty"`
 	Configuracion       map[string]interface{} `bson:"configuracion,omitempty" json:"configuracion,omitempty"`
 	Activo              bool               `bson:"activo" json:"activo"`

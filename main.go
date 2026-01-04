@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"electric-backend/api/v1/controllers"
 	"electric-backend/config"
 	"electric-backend/domain/facades"
@@ -48,6 +49,8 @@ func main() {
 	router.Use(middleware.ErrorHandler())
 
 	wsHub := websocket.InitializeHub()
+	
+	go wsHub.Run()
 	
 	arduinoBridge := arduino.NewSerialBridge(wsHub)
 	
@@ -99,18 +102,23 @@ func main() {
 	estadisticaRepo := data.NewEstadisticaRepository()
 	cotizacionRepo := data.NewCotizacionRepository()
 
-	// Inicializar servicios
+	wsNotifierService := services.NewWebSocketNotifierService(wsHub)
+	dashboardService := services.NewDashboardService(clienteRepo, dispositivoRepo, alertaRepo, ticketRepo)
+
 	authService := services.NewAuthService(empresaRepo, clienteRepo, recoveryTokenRepo)
 	clienteService := services.NewClienteService(clienteRepo)
 	empresaService := services.NewEmpresaService(empresaRepo)
-	dispositivoService := services.NewDispositivoService(dispositivoRepo)
-	notificacionService := services.NewNotificacionService(notificacionRepo)
-	alertaService := services.NewAlertaService(alertaRepo)
+	dispositivoService := services.NewDispositivoService(dispositivoRepo, wsNotifierService)
+	notificacionService := services.NewNotificacionService(notificacionRepo, wsNotifierService)
+	alertaService := services.NewAlertaService(alertaRepo, wsNotifierService)
 	boletaService := services.NewBoletaService(boletaRepo)
-	ticketService := services.NewTicketService(ticketRepo)
+	ticketService := services.NewTicketService(ticketRepo, notificacionRepo)
 	configuracionService := services.NewConfiguracionService(configuracionRepo)
 	estadisticaService := services.NewEstadisticaService(estadisticaRepo)
 	cotizacionService := services.NewCotizacionService(cotizacionRepo)
+	alertaAutomaticaService := services.NewAlertaAutomaticaService(alertaRepo, dispositivoRepo, notificacionRepo, empresaRepo)
+	reporteService := services.NewReporteService(clienteRepo, empresaRepo, dispositivoRepo, boletaRepo)
+	antifraudeService := services.NewAntifraudeService(dispositivoRepo, clienteRepo, alertaRepo, notificacionRepo)
 
 	// Inicializar facades
 	authFacade := facades.NewAuthFacade(authService)
@@ -134,6 +142,11 @@ func main() {
 	wsController := controllers.NewWebSocketController(wsHub)
 	arduinoController := controllers.NewArduinoController(arduinoBridge)
 	dashboardClienteController := controllers.NewDashboardClienteController(clienteFacade, dispositivoFacade, boletaService, estadisticaService)
+	alertaAutomaticaController := controllers.NewAlertaAutomaticaController(alertaAutomaticaService)
+	reporteController := controllers.NewReporteController(reporteService)
+	mapaController := controllers.NewMapaController(dispositivoService, clienteService)
+	antifraudeController := controllers.NewAntifraudeController(antifraudeService)
+	dashboardController := controllers.NewDashboardController(dashboardService)
 
 	api := router.Group("/api")
 	{
@@ -167,7 +180,15 @@ func main() {
 		setupTicketRoutes(api, ticketController)
 		setupConfiguracionRoutes(api, configuracionController)
 		setupEstadisticaRoutes(api, estadisticaController)
+		setupAlertaAutomaticaRoutes(api, alertaAutomaticaController)
+		setupReporteRoutes(api, reporteController)
+		setupMapaRoutes(api, mapaController)
+		setupAntifraudeRoutes(api, antifraudeController)
+		setupDashboardRoutes(api, dashboardController)
 	}
+
+	ctx := context.Background()
+	go alertaAutomaticaService.IniciarMonitoreoAutomatico(ctx)
 
 	// Ruta 404
 	router.NoRoute(func(c *gin.Context) {
@@ -226,6 +247,8 @@ func setupDispositivoRoutes(router *gin.RouterGroup, ctrl *controllers.Dispositi
 		dispositivos.GET("/:id", ctrl.ObtenerPorID)
 		dispositivos.POST("", ctrl.Crear)
 		dispositivos.PUT("/:id", ctrl.Actualizar)
+		dispositivos.PUT("/:id/asignar", ctrl.AsignarCliente)
+		dispositivos.PUT("/:id/desasignar", ctrl.DesasignarCliente)
 		dispositivos.DELETE("/:id", ctrl.Eliminar)
 	}
 }
@@ -270,6 +293,8 @@ func setupTicketRoutes(router *gin.RouterGroup, ctrl *controllers.TicketControll
 	{
 		tickets.GET("", ctrl.ObtenerTodos)
 		tickets.GET("/:id", ctrl.ObtenerPorID)
+		tickets.GET("/cliente/:clienteId", ctrl.ObtenerPorCliente)
+		tickets.GET("/empresa/:empresaId", ctrl.ObtenerPorEmpresa)
 		tickets.POST("", ctrl.Crear)
 		tickets.PUT("/:id/responder", ctrl.AgregarRespuesta)
 		tickets.PUT("/:id/estado", ctrl.ActualizarEstado)
@@ -293,5 +318,49 @@ func setupEstadisticaRoutes(router *gin.RouterGroup, ctrl *controllers.Estadisti
 	{
 		estadisticas.GET("/cliente/:clienteId", ctrl.ObtenerConsumoCliente)
 		estadisticas.GET("/globales", ctrl.ObtenerEstadisticasGlobales)
+	}
+}
+
+func setupAlertaAutomaticaRoutes(router *gin.RouterGroup, ctrl *controllers.AlertaAutomaticaController) {
+	alertasAuto := router.Group("/alertas-automaticas")
+	alertasAuto.Use(middleware.AuthMiddleware())
+	{
+		alertasAuto.POST("/verificar/:empresaId", ctrl.VerificarManual)
+	}
+}
+
+func setupReporteRoutes(router *gin.RouterGroup, ctrl *controllers.ReporteController) {
+	reportes := router.Group("/reportes")
+	reportes.Use(middleware.AuthMiddleware())
+	{
+		reportes.GET("/clientes", ctrl.GenerarReporteClientes)
+		reportes.GET("/dispositivos", ctrl.GenerarReporteDispositivos)
+		reportes.GET("/boletas", ctrl.GenerarReporteBoletas)
+		reportes.GET("/consumo", ctrl.GenerarReporteConsumo)
+	}
+}
+
+func setupMapaRoutes(router *gin.RouterGroup, ctrl *controllers.MapaController) {
+	mapa := router.Group("/mapa")
+	mapa.Use(middleware.AuthMiddleware())
+	{
+		mapa.GET("/datos", ctrl.ObtenerDatosMapa)
+	}
+}
+
+func setupAntifraudeRoutes(router *gin.RouterGroup, ctrl *controllers.AntifraudeController) {
+	antifraude := router.Group("/antifraude")
+	antifraude.Use(middleware.AuthMiddleware())
+	{
+		antifraude.GET("/anomalias", ctrl.DetectarAnomalias)
+		antifraude.GET("/estadisticas", ctrl.ObtenerEstadisticas)
+	}
+}
+
+func setupDashboardRoutes(router *gin.RouterGroup, ctrl *controllers.DashboardController) {
+	dashboard := router.Group("/dashboard")
+	dashboard.Use(middleware.AuthMiddleware())
+	{
+		dashboard.GET("/estadisticas", ctrl.ObtenerEstadisticas)
 	}
 }

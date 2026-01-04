@@ -110,6 +110,44 @@ func (ctrl *DispositivoController) Actualizar(gctx *gin.Context) {
 	})
 }
 
+func (ctrl *DispositivoController) AsignarCliente(gctx *gin.Context) {
+	id := gctx.Param("id")
+
+	var r recipe.AsignarDispositivoRecipe
+	if err := gctx.ShouldBindJSON(&r); err != nil {
+		gctx.Error(types.ThrowRecipe("Datos inválidos", ""))
+		return
+	}
+
+	dispositivo, err := ctrl.dispositivoFacade.AsignarCliente(gctx.Request.Context(), id, r.ClienteID)
+	if err != nil {
+		gctx.Error(err)
+		return
+	}
+
+	gctx.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"data":    dispositivo,
+		"message": "Dispositivo asignado correctamente",
+	})
+}
+
+func (ctrl *DispositivoController) DesasignarCliente(gctx *gin.Context) {
+	id := gctx.Param("id")
+
+	dispositivo, err := ctrl.dispositivoFacade.AsignarCliente(gctx.Request.Context(), id, "")
+	if err != nil {
+		gctx.Error(err)
+		return
+	}
+
+	gctx.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"data":    dispositivo,
+		"message": "Dispositivo desasignado correctamente",
+	})
+}
+
 func (ctrl *DispositivoController) ActualizarLectura(gctx *gin.Context) {
 	numeroDispositivo := gctx.Param("numeroDispositivo")
 

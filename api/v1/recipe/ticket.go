@@ -1,10 +1,12 @@
 package recipe
 
 type CrearTicketRecipe struct {
-	Titulo      string `json:"titulo" binding:"required"`
+	Asunto      string `json:"asunto" binding:"required"`
 	Descripcion string `json:"descripcion" binding:"required"`
-	Prioridad   string `json:"prioridad" binding:"required"`
+	Categoria   string `json:"categoria"`
+	Prioridad   string `json:"prioridad"`
 	ClienteID   string `json:"clienteId,omitempty"`
+	EmpresaID   string `json:"empresaId,omitempty"`
 }
 
 type AgregarRespuestaRecipe struct {

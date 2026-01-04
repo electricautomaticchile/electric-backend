@@ -13,6 +13,10 @@ type ActualizarDispositivoRecipe struct {
 	Tipo   string `json:"tipo,omitempty"`
 }
 
+type AsignarDispositivoRecipe struct {
+	ClienteID string `json:"clienteId" binding:"required"`
+}
+
 type ActualizarLecturaRecipe struct {
 	Voltage     float64 `json:"voltage"`
 	Current     float64 `json:"current"`

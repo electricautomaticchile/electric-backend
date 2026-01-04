@@ -1,16 +1,16 @@
 package data
 
 import (
-"context"
-"electric-backend/config"
-"electric-backend/infrastructure/entities"
-"electric-backend/types"
-"fmt"
-"time"
+	"context"
+	"electric-backend/config"
+	"electric-backend/infrastructure/entities"
+	"electric-backend/types"
+	"fmt"
+	"time"
 
-"go.mongodb.org/mongo-driver/bson"
-"go.mongodb.org/mongo-driver/bson/primitive"
-"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/bson/primitive"
+	"go.mongodb.org/mongo-driver/mongo"
 )
 
 type TicketRepository struct {
@@ -110,4 +110,48 @@ func (r *TicketRepository) Delete(ctx context.Context, id string) error {
 
 	_, err = r.collection.DeleteOne(ctx, bson.M{"_id": objectID})
 	return err
+}
+
+func (r *TicketRepository) FindByCliente(ctx context.Context, clienteID string) ([]*entities.TicketEntity, error) {
+	objectID, err := primitive.ObjectIDFromHex(clienteID)
+	if err != nil {
+		return []*entities.TicketEntity{}, nil
+	}
+
+	cursor, err := r.collection.Find(ctx, bson.M{"clienteId": objectID})
+	if err != nil {
+		return []*entities.TicketEntity{}, nil
+	}
+	defer cursor.Close(ctx)
+
+	var tickets []*entities.TicketEntity
+	if err := cursor.All(ctx, &tickets); err != nil {
+		return []*entities.TicketEntity{}, nil
+	}
+	if tickets == nil {
+		return []*entities.TicketEntity{}, nil
+	}
+	return tickets, nil
+}
+
+func (r *TicketRepository) FindByEmpresa(ctx context.Context, empresaID string) ([]*entities.TicketEntity, error) {
+	objectID, err := primitive.ObjectIDFromHex(empresaID)
+	if err != nil {
+		return []*entities.TicketEntity{}, nil
+	}
+
+	cursor, err := r.collection.Find(ctx, bson.M{"empresaId": objectID})
+	if err != nil {
+		return []*entities.TicketEntity{}, nil
+	}
+	defer cursor.Close(ctx)
+
+	var tickets []*entities.TicketEntity
+	if err := cursor.All(ctx, &tickets); err != nil {
+		return []*entities.TicketEntity{}, nil
+	}
+	if tickets == nil {
+		return []*entities.TicketEntity{}, nil
+	}
+	return tickets, nil
 }

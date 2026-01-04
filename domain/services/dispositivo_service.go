@@ -1,24 +1,26 @@
 package services
 
 import (
-"context"
-"electric-backend/api/v1/recipe"
-"electric-backend/domain/models"
-"electric-backend/domain/ports"
-"electric-backend/infrastructure/entities"
-"electric-backend/types"
-"time"
+	"context"
+	"electric-backend/api/v1/recipe"
+	"electric-backend/domain/models"
+	"electric-backend/domain/ports"
+	"electric-backend/infrastructure/entities"
+	"electric-backend/types"
+	"time"
 
-"go.mongodb.org/mongo-driver/bson/primitive"
+	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
 type DispositivoService struct {
 	dispositivoRepo ports.PortDispositivo
+	wsNotifier      *WebSocketNotifierService
 }
 
-func NewDispositivoService(dispositivoRepo ports.PortDispositivo) *DispositivoService {
+func NewDispositivoService(dispositivoRepo ports.PortDispositivo, wsNotifier *WebSocketNotifierService) *DispositivoService {
 	return &DispositivoService{
 		dispositivoRepo: dispositivoRepo,
+		wsNotifier:      wsNotifier,
 	}
 }
 
@@ -114,6 +116,29 @@ func (s *DispositivoService) Actualizar(ctx context.Context, id string, r *recip
 	return s.entityToModel(dispositivo), nil
 }
 
+func (s *DispositivoService) AsignarCliente(ctx context.Context, id string, clienteID string) (*models.DispositivoModel, error) {
+	dispositivo, err := s.dispositivoRepo.FindByID(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+
+	if clienteID == "" {
+		dispositivo.ClienteID = primitive.NilObjectID
+	} else {
+		clienteOID, err := primitive.ObjectIDFromHex(clienteID)
+		if err != nil {
+			return nil, types.ThrowRecipe("ClienteID inválido", "clienteId")
+		}
+		dispositivo.ClienteID = clienteOID
+	}
+
+	if err := s.dispositivoRepo.Update(ctx, id, dispositivo); err != nil {
+		return nil, err
+	}
+
+	return s.entityToModel(dispositivo), nil
+}
+
 func (s *DispositivoService) ActualizarUltimaLectura(ctx context.Context, numeroDispositivo string, r *recipe.ActualizarLecturaRecipe) error {
 	lectura := &entities.LecturaDispositivo{
 		Voltage:     r.Voltage,
@@ -124,7 +149,18 @@ func (s *DispositivoService) ActualizarUltimaLectura(ctx context.Context, numero
 		Timestamp:   time.Now(),
 	}
 
-	return s.dispositivoRepo.UpdateUltimaLectura(ctx, numeroDispositivo, lectura)
+	if err := s.dispositivoRepo.UpdateUltimaLectura(ctx, numeroDispositivo, lectura); err != nil {
+		return err
+	}
+
+	if s.wsNotifier != nil {
+		dispositivo, err := s.dispositivoRepo.FindByNumero(ctx, numeroDispositivo)
+		if err == nil {
+			s.wsNotifier.NotificarActualizacionDispositivo(dispositivo)
+		}
+	}
+
+	return nil
 }
 
 func (s *DispositivoService) CambiarEstado(ctx context.Context, id string, r *recipe.CambiarEstadoDispositivoRecipe) error {
@@ -144,6 +180,9 @@ func (s *DispositivoService) entityToModel(entity *entities.DispositivoEntity) *
 		ClienteID:           entity.ClienteID.Hex(),
 		EmpresaID:           entity.EmpresaID.Hex(),
 		Estado:              entity.Estado,
+		Latitud:             entity.Latitud,
+		Longitud:            entity.Longitud,
+		Direccion:           entity.Direccion,
 		Configuracion:       entity.Configuracion,
 		Activo:              entity.Activo,
 		FechaCreacion:       entity.FechaCreacion,
@@ -162,4 +201,38 @@ func (s *DispositivoService) entityToModel(entity *entities.DispositivoEntity) *
 	}
 
 	return model
+}
+
+func (s *DispositivoService) ObtenerDispositivosConUbicacion(ctx context.Context, empresaID string) ([]map[string]interface{}, error) {
+	dispositivos, err := s.dispositivoRepo.FindAll(ctx, empresaID)
+	if err != nil {
+		return []map[string]interface{}{}, nil
+	}
+
+	resultado := make([]map[string]interface{}, 0)
+	for _, d := range dispositivos {
+		if d.Latitud != 0 && d.Longitud != 0 {
+			item := map[string]interface{}{
+				"id":                d.ID.Hex(),
+				"numeroDispositivo": d.NumeroDispositivo,
+				"nombre":            d.Nombre,
+				"tipo":              d.Tipo,
+				"estado":            d.Estado,
+				"latitud":           d.Latitud,
+				"longitud":          d.Longitud,
+				"direccion":         d.Direccion,
+				"clienteId":         d.ClienteID.Hex(),
+				"activo":            d.Activo,
+			}
+
+			if d.UltimaLectura != nil {
+				item["consumo"] = d.UltimaLectura.Energy
+				item["ultimaLectura"] = d.UltimaLectura.Timestamp
+			}
+
+			resultado = append(resultado, item)
+		}
+	}
+
+	return resultado, nil
 }

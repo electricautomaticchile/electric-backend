@@ -1,22 +1,25 @@
 package services
 
 import (
-"context"
-"electric-backend/api/v1/recipe"
-"electric-backend/domain/models"
-"electric-backend/domain/ports"
-"electric-backend/infrastructure/entities"
+	"context"
+	"electric-backend/api/v1/recipe"
+	"electric-backend/domain/models"
+	"electric-backend/domain/ports"
+	"electric-backend/infrastructure/entities"
+	"time"
 
-"go.mongodb.org/mongo-driver/bson/primitive"
+	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
 type TicketService struct {
-	ticketRepo ports.PortTicket
+	ticketRepo       ports.PortTicket
+	notificacionRepo ports.PortNotificacion
 }
 
-func NewTicketService(ticketRepo ports.PortTicket) *TicketService {
+func NewTicketService(ticketRepo ports.PortTicket, notificacionRepo ports.PortNotificacion) *TicketService {
 	return &TicketService{
-		ticketRepo: ticketRepo,
+		ticketRepo:       ticketRepo,
+		notificacionRepo: notificacionRepo,
 	}
 }
 
@@ -44,10 +47,21 @@ func (s *TicketService) ObtenerPorID(ctx context.Context, id string) (*models.Ti
 }
 
 func (s *TicketService) Crear(ctx context.Context, r *recipe.CrearTicketRecipe) (*models.TicketModel, error) {
+	prioridad := r.Prioridad
+	if prioridad == "" {
+		prioridad = "media"
+	}
+
+	categoria := r.Categoria
+	if categoria == "" {
+		categoria = "general"
+	}
+
 	entity := &entities.TicketEntity{
-		Titulo:      r.Titulo,
+		Titulo:      r.Asunto,
 		Descripcion: r.Descripcion,
-		Prioridad:   r.Prioridad,
+		Prioridad:   prioridad,
+		Categoria:   categoria,
 	}
 
 	if r.ClienteID != "" {
@@ -55,8 +69,25 @@ func (s *TicketService) Crear(ctx context.Context, r *recipe.CrearTicketRecipe) 
 		entity.ClienteID = clienteID
 	}
 
+	if r.EmpresaID != "" {
+		empresaID, _ := primitive.ObjectIDFromHex(r.EmpresaID)
+		entity.EmpresaID = empresaID
+	}
+
 	if err := s.ticketRepo.Create(ctx, entity); err != nil {
 		return nil, err
+	}
+
+	if !entity.EmpresaID.IsZero() {
+		notificacion := &entities.NotificacionEntity{
+			DestinatarioID: entity.EmpresaID,
+			Tipo:           "ticket",
+			Titulo:         "Nuevo Ticket Recibido",
+			Mensaje:        "Se ha creado un nuevo ticket #" + entity.NumeroTicket + ": " + entity.Titulo,
+			Leida:          false,
+			FechaCreacion:  time.Now(),
+		}
+		s.notificacionRepo.Create(ctx, notificacion)
 	}
 
 	return s.entityToModel(entity), nil
@@ -68,11 +99,72 @@ func (s *TicketService) AgregarRespuesta(ctx context.Context, id string, r *reci
 		UsuarioID: usuarioID,
 	}
 
-	return s.ticketRepo.AgregarRespuesta(ctx, id, respuesta)
+	if err := s.ticketRepo.AgregarRespuesta(ctx, id, respuesta); err != nil {
+		return err
+	}
+
+	ticket, err := s.ticketRepo.FindByID(ctx, id)
+	if err != nil {
+		return err
+	}
+
+	var destinatarioID primitive.ObjectID
+	if usuarioID == ticket.ClienteID.Hex() {
+		destinatarioID = ticket.EmpresaID
+	} else {
+		destinatarioID = ticket.ClienteID
+	}
+
+	if !destinatarioID.IsZero() {
+		notificacion := &entities.NotificacionEntity{
+			DestinatarioID: destinatarioID,
+			Tipo:           "ticket",
+			Titulo:         "Nueva Respuesta en Ticket",
+			Mensaje:        "Hay una nueva respuesta en el ticket #" + ticket.NumeroTicket,
+			Leida:          false,
+			FechaCreacion:  time.Now(),
+		}
+		s.notificacionRepo.Create(ctx, notificacion)
+	}
+
+	return nil
 }
 
 func (s *TicketService) ActualizarEstado(ctx context.Context, id string, r *recipe.ActualizarEstadoTicketRecipe) error {
-	return s.ticketRepo.ActualizarEstado(ctx, id, r.Estado)
+	if err := s.ticketRepo.ActualizarEstado(ctx, id, r.Estado); err != nil {
+		return err
+	}
+
+	ticket, err := s.ticketRepo.FindByID(ctx, id)
+	if err != nil {
+		return err
+	}
+
+	estadoTexto := ""
+	switch r.Estado {
+	case "abierto":
+		estadoTexto = "abierto"
+	case "en_proceso":
+		estadoTexto = "en proceso"
+	case "resuelto":
+		estadoTexto = "resuelto"
+	case "cerrado":
+		estadoTexto = "cerrado"
+	default:
+		estadoTexto = r.Estado
+	}
+
+	notificacion := &entities.NotificacionEntity{
+		DestinatarioID: ticket.ClienteID,
+		Tipo:           "ticket",
+		Titulo:         "Estado de Ticket Actualizado",
+		Mensaje:        "Tu ticket #" + ticket.NumeroTicket + " ha cambiado a estado: " + estadoTexto,
+		Leida:          false,
+		FechaCreacion:  time.Now(),
+	}
+	s.notificacionRepo.Create(ctx, notificacion)
+
+	return nil
 }
 
 func (s *TicketService) Eliminar(ctx context.Context, id string) error {
@@ -96,6 +188,7 @@ func (s *TicketService) entityToModel(entity *entities.TicketEntity) *models.Tic
 		Descripcion:   entity.Descripcion,
 		Estado:        entity.Estado,
 		Prioridad:     entity.Prioridad,
+		Categoria:     entity.Categoria,
 		Respuestas:    respuestas,
 		FechaCreacion: entity.FechaCreacion,
 	}
@@ -104,5 +197,38 @@ func (s *TicketService) entityToModel(entity *entities.TicketEntity) *models.Tic
 		model.ClienteID = entity.ClienteID.Hex()
 	}
 
+	if !entity.EmpresaID.IsZero() {
+		model.EmpresaID = entity.EmpresaID.Hex()
+	}
+
 	return model
+}
+
+
+func (s *TicketService) ObtenerPorCliente(ctx context.Context, clienteID string) ([]*models.TicketModel, error) {
+	tickets, err := s.ticketRepo.FindByCliente(ctx, clienteID)
+	if err != nil {
+		return []*models.TicketModel{}, nil
+	}
+
+	models := make([]*models.TicketModel, len(tickets))
+	for i, ticket := range tickets {
+		models[i] = s.entityToModel(ticket)
+	}
+
+	return models, nil
+}
+
+func (s *TicketService) ObtenerPorEmpresa(ctx context.Context, empresaID string) ([]*models.TicketModel, error) {
+	tickets, err := s.ticketRepo.FindByEmpresa(ctx, empresaID)
+	if err != nil {
+		return []*models.TicketModel{}, nil
+	}
+
+	models := make([]*models.TicketModel, len(tickets))
+	for i, ticket := range tickets {
+		models[i] = s.entityToModel(ticket)
+	}
+
+	return models, nil
 }

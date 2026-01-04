@@ -50,7 +50,10 @@ func (ctrl *TicketController) ObtenerPorID(gctx *gin.Context) {
 func (ctrl *TicketController) Crear(gctx *gin.Context) {
 	var r recipe.CrearTicketRecipe
 	if err := gctx.ShouldBindJSON(&r); err != nil {
-		gctx.Error(types.ThrowRecipe("Datos inválidos", ""))
+		gctx.JSON(http.StatusBadRequest, gin.H{
+			"success": false,
+			"error":   "Datos inválidos: " + err.Error(),
+		})
 		return
 	}
 
@@ -123,4 +126,35 @@ func (ctrl *TicketController) Eliminar(gctx *gin.Context) {
 "success": true,
 "message": "Ticket eliminado correctamente",
 })
+}
+
+
+func (ctrl *TicketController) ObtenerPorCliente(gctx *gin.Context) {
+	clienteID := gctx.Param("clienteId")
+
+	tickets, err := ctrl.ticketService.ObtenerPorCliente(gctx.Request.Context(), clienteID)
+	if err != nil {
+		gctx.Error(err)
+		return
+	}
+
+	gctx.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"data":    tickets,
+	})
+}
+
+func (ctrl *TicketController) ObtenerPorEmpresa(gctx *gin.Context) {
+	empresaID := gctx.Param("empresaId")
+
+	tickets, err := ctrl.ticketService.ObtenerPorEmpresa(gctx.Request.Context(), empresaID)
+	if err != nil {
+		gctx.Error(err)
+		return
+	}
+
+	gctx.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"data":    tickets,
+	})
 }

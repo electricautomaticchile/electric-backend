@@ -9,7 +9,9 @@ type TicketModel struct {
 	Descripcion   string              `json:"descripcion"`
 	Estado        string              `json:"estado"`
 	Prioridad     string              `json:"prioridad"`
+	Categoria     string              `json:"categoria"`
 	ClienteID     string              `json:"clienteId,omitempty"`
+	EmpresaID     string              `json:"empresaId,omitempty"`
 	Respuestas    []RespuestaTicketModel `json:"respuestas"`
 	FechaCreacion time.Time           `json:"fechaCreacion"`
 }
