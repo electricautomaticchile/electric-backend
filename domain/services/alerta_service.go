@@ -14,8 +14,8 @@ type AlertaService struct {
 
 func NewAlertaService(alertaRepo ports.PortAlerta, wsNotifier *WebSocketNotifierService) *AlertaService {
 	return &AlertaService{
-		alertaRepo: alertaRepo,
-		wsNotifier: wsNotifier,
+		alertaRepo:   alertaRepo,
+		wsNotifier:   wsNotifier,
 	}
 }
 

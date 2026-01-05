@@ -5,20 +5,24 @@ import (
 	"electric-backend/api/v1/recipe"
 	"electric-backend/domain/models"
 	"electric-backend/domain/ports"
+	"electric-backend/infrastructure/email"
 	"electric-backend/types"
 	"fmt"
+	"log"
 	"time"
 
 	"golang.org/x/crypto/bcrypt"
 )
 
 type ClienteService struct {
-	clienteRepo ports.PortCliente
+	clienteRepo  ports.PortCliente
+	emailService *email.ResendService
 }
 
-func NewClienteService(clienteRepo ports.PortCliente) *ClienteService {
+func NewClienteService(clienteRepo ports.PortCliente, emailService *email.ResendService) *ClienteService {
 	return &ClienteService{
-		clienteRepo: clienteRepo,
+		clienteRepo:  clienteRepo,
+		emailService: emailService,
 	}
 }
 
@@ -71,7 +75,16 @@ func (s *ClienteService) Crear(ctx context.Context, r *recipe.CrearClienteRecipe
 		return nil, err
 	}
 
+	go s.enviarCredencialesPorEmail(model.Correo, model.Nombre, numeroCliente, passwordTemporal)
+
 	return model, nil
+}
+
+func (s *ClienteService) enviarCredencialesPorEmail(correo, nombre, numeroCliente, passwordTemporal string) {
+	err := s.emailService.EnviarCredenciales(correo, nombre, numeroCliente, passwordTemporal)
+	if err != nil {
+		log.Printf("Error enviando credenciales por email: %v", err)
+	}
 }
 
 func (s *ClienteService) generarPasswordTemporal() string {

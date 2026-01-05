@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="UTF-8">
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+        }
+
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #f97316 0%, #ea580c 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+            border-radius: 10px 10px 0 0;
+        }
+
+        .content {
+            background: #f9fafb;
+            padding: 30px;
+            border-radius: 0 0 10px 10px;
+        }
+
+        .alert-box {
+            background: #fef2f2;
+            border-left: 4px solid #ef4444;
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 4px;
+        }
+
+        .footer {
+            text-align: center;
+            margin-top: 20px;
+            color: #6b7280;
+            font-size: 12px;
+        }
+
+        .button {
+            display: inline-block;
+            background: #f97316;
+            color: white;
+            padding: 12px 24px;
+            text-decoration: none;
+            border-radius: 6px;
+            margin-top: 20px;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🔔 Nueva Alerta</h1>
+        </div>
+        <div class="content">
+            <p>Hola <strong>{{.NombreCliente}}</strong>,</p>
+            <p>Se ha generado una nueva alerta en tu sistema de monitoreo eléctrico:</p>
+            <div class="alert-box">
+                <h3>{{.TipoAlerta}}</h3>
+                <p>{{.Mensaje}}</p>
+            </div>
+            <p>Te recomendamos revisar esta alerta lo antes posible desde tu panel de control.</p>
+            <a href="https://electricautomaticchile.com/cliente" class="button">Ver Dashboard</a>
+        </div>
+        <div class="footer">
+            <p>Electric Automatic Chile - Sistema de Monitoreo Eléctrico</p>
+            <p>Este es un correo automático, por favor no responder.</p>
+        </div>
+    </div>
+</body>
+
+</html>

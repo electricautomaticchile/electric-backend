@@ -2,16 +2,20 @@ package services
 
 import (
 	"context"
+	"crypto/rand"
 	"electric-backend/api/v1/recipe"
 	"electric-backend/config"
 	"electric-backend/domain/models"
 	"electric-backend/domain/ports"
+	"electric-backend/infrastructure/email"
+	"electric-backend/infrastructure/entities"
 	"electric-backend/types"
+	"encoding/hex"
 	"fmt"
-	"math/rand"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
+	"go.mongodb.org/mongo-driver/bson/primitive"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -19,13 +23,15 @@ type AuthService struct {
 	empresaRepo       ports.PortEmpresa
 	clienteRepo       ports.PortCliente
 	recoveryTokenRepo ports.PortRecoveryToken
+	emailService      *email.ResendService
 }
 
-func NewAuthService(empresaRepo ports.PortEmpresa, clienteRepo ports.PortCliente, recoveryTokenRepo ports.PortRecoveryToken) *AuthService {
+func NewAuthService(empresaRepo ports.PortEmpresa, clienteRepo ports.PortCliente, recoveryTokenRepo ports.PortRecoveryToken, emailService *email.ResendService) *AuthService {
 	return &AuthService{
 		empresaRepo:       empresaRepo,
 		clienteRepo:       clienteRepo,
 		recoveryTokenRepo: recoveryTokenRepo,
+		emailService:      emailService,
 	}
 }
 
@@ -150,13 +156,73 @@ func (s *AuthService) CambiarPassword(ctx context.Context, userID string, r *rec
 }
 
 func (s *AuthService) SolicitarRecuperacion(ctx context.Context, r *recipe.SolicitarRecuperacionRecipe) error {
-	// TODO: Implementar recuperación de contraseña
+	var usuarioID primitive.ObjectID
+	var nombre, correo string
+
+	cliente, err := s.clienteRepo.FindByCorreo(ctx, r.Email)
+	if err == nil && cliente != nil {
+		usuarioID, _ = primitive.ObjectIDFromHex(cliente.ID)
+		nombre = cliente.Nombre
+		correo = cliente.Correo
+	} else {
+		empresa, err := s.empresaRepo.FindByCorreo(ctx, r.Email)
+		if err != nil {
+			return nil
+		}
+		usuarioID, _ = primitive.ObjectIDFromHex(empresa.ID)
+		nombre = empresa.NombreEmpresa
+		correo = empresa.Correo
+	}
+
+	token := s.generarTokenRecuperacion()
+	
+	recoveryToken := &entities.RecoveryTokenEntity{
+		UsuarioID:       usuarioID,
+		Token:           token,
+		FechaExpiracion: time.Now().Add(1 * time.Hour),
+		Usado:           false,
+	}
+
+	if err := s.recoveryTokenRepo.Create(ctx, recoveryToken); err != nil {
+		return err
+	}
+
+	go s.emailService.EnviarRecuperacionPassword(correo, nombre, token)
+
 	return nil
 }
 
 func (s *AuthService) RestablecerPassword(ctx context.Context, r *recipe.RestablecerPasswordRecipe) error {
-	// TODO: Implementar restablecimiento de contraseña
-	return nil
+	recoveryToken, err := s.recoveryTokenRepo.FindByToken(ctx, r.Token)
+	if err != nil {
+		return types.ThrowData("Token inválido o expirado")
+	}
+
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(r.Password), 12)
+	if err != nil {
+		return err
+	}
+
+	usuarioID := recoveryToken.UsuarioID.Hex()
+
+	empresa, err := s.empresaRepo.FindByID(ctx, usuarioID)
+	if err == nil && empresa != nil {
+		if err := s.empresaRepo.UpdatePassword(ctx, usuarioID, string(hashedPassword)); err != nil {
+			return err
+		}
+	} else {
+		if err := s.clienteRepo.UpdatePassword(ctx, usuarioID, string(hashedPassword)); err != nil {
+			return err
+		}
+	}
+
+	return s.recoveryTokenRepo.MarkAsUsed(ctx, recoveryToken.ID.Hex())
+}
+
+func (s *AuthService) generarTokenRecuperacion() string {
+	bytes := make([]byte, 32)
+	rand.Read(bytes)
+	return hex.EncodeToString(bytes)
 }
 
 func (s *AuthService) RegistrarEmpresa(ctx context.Context, r *recipe.RegistroEmpresaRecipe) (*models.EmpresaModel, error) {
@@ -207,9 +273,8 @@ func (s *AuthService) RegistrarEmpresa(ctx context.Context, r *recipe.RegistroEm
 }
 
 func (s *AuthService) generarNumeroCliente() string {
-	rand.Seed(time.Now().UnixNano())
-	numero := rand.Intn(9000000) + 1000000
-	dv := s.calcularDigitoVerificador(numero)
+	numero := time.Now().UnixNano()%9000000 + 1000000
+	dv := s.calcularDigitoVerificador(int(numero))
 	return fmt.Sprintf("%d-%s", numero, dv)
 }
 

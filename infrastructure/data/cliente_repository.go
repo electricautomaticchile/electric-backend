@@ -195,6 +195,23 @@ func (r *ClienteRepository) FindByNumeroCliente(ctx context.Context, numeroClien
 	return r.FindByNumero(ctx, numeroCliente)
 }
 
+func (r *ClienteRepository) FindByCorreo(ctx context.Context, correo string) (*models.ClienteModel, error) {
+	var entity entities.ClienteEntity
+	err := r.collection.FindOne(ctx, bson.M{
+		"$or": []bson.M{
+			{"correo": correo},
+			{"email": correo},
+		},
+	}).Decode(&entity)
+	if err != nil {
+		if err == mongo.ErrNoDocuments {
+			return nil, types.ThrowData("Cliente no encontrado")
+		}
+		return nil, err
+	}
+	return r.entityToModel(&entity), nil
+}
+
 func (r *ClienteRepository) Create(ctx context.Context, model *models.ClienteModel) error {
 	entity := r.modelToEntity(model)
 	entity.FechaCreacion = time.Now().UnixMilli()

@@ -1,22 +1,30 @@
 package services
 
 import (
-"context"
-"electric-backend/api/v1/recipe"
-"electric-backend/domain/models"
-"electric-backend/domain/ports"
-"electric-backend/infrastructure/entities"
+	"context"
+	"electric-backend/api/v1/recipe"
+	"electric-backend/domain/models"
+	"electric-backend/domain/ports"
+	"electric-backend/infrastructure/email"
+	"electric-backend/infrastructure/entities"
+	"fmt"
+	"log"
+	"time"
 
-"go.mongodb.org/mongo-driver/bson/primitive"
+	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
 type BoletaService struct {
-	boletaRepo ports.PortBoleta
+	boletaRepo   ports.PortBoleta
+	clienteRepo  ports.PortCliente
+	emailService *email.ResendService
 }
 
-func NewBoletaService(boletaRepo ports.PortBoleta) *BoletaService {
+func NewBoletaService(boletaRepo ports.PortBoleta, clienteRepo ports.PortCliente, emailService *email.ResendService) *BoletaService {
 	return &BoletaService{
-		boletaRepo: boletaRepo,
+		boletaRepo:   boletaRepo,
+		clienteRepo:  clienteRepo,
+		emailService: emailService,
 	}
 }
 
@@ -56,7 +64,37 @@ func (s *BoletaService) Crear(ctx context.Context, r *recipe.CrearBoletaRecipe) 
 		return nil, err
 	}
 
+	go s.enviarBoletaPorEmail(ctx, r.ClienteID, entity)
+
 	return s.entityToModel(entity), nil
+}
+
+func (s *BoletaService) enviarBoletaPorEmail(ctx context.Context, clienteID string, boleta *entities.BoletaEntity) {
+	cliente, err := s.clienteRepo.FindByID(ctx, clienteID)
+	if err != nil {
+		log.Printf("Error obteniendo cliente para email de boleta: %v", err)
+		return
+	}
+
+	if cliente.Correo == "" {
+		return
+	}
+
+	numeroBoleta := boleta.ID.Hex()[:8]
+	monto := fmt.Sprintf("%.2f", boleta.Monto)
+	fechaVencimiento := time.Now().AddDate(0, 0, 30).Format("02/01/2006")
+
+	err = s.emailService.EnviarNotificacionBoleta(
+		cliente.Correo,
+		cliente.Nombre,
+		numeroBoleta,
+		monto,
+		fechaVencimiento,
+	)
+
+	if err != nil {
+		log.Printf("Error enviando email de boleta: %v", err)
+	}
 }
 
 func (s *BoletaService) entityToModel(entity *entities.BoletaEntity) *models.BoletaModel {

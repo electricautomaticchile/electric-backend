@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="UTF-8">
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+        }
+
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+            border-radius: 10px 10px 0 0;
+        }
+
+        .content {
+            background: #f9fafb;
+            padding: 30px;
+            border-radius: 0 0 10px 10px;
+        }
+
+        .boleta-box {
+            background: white;
+            border: 2px solid #10b981;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 8px;
+        }
+
+        .amount {
+            font-size: 32px;
+            font-weight: bold;
+            color: #10b981;
+            text-align: center;
+            margin: 20px 0;
+        }
+
+        .footer {
+            text-align: center;
+            margin-top: 20px;
+            color: #6b7280;
+            font-size: 12px;
+        }
+
+        .button {
+            display: inline-block;
+            background: #10b981;
+            color: white;
+            padding: 12px 24px;
+            text-decoration: none;
+            border-radius: 6px;
+            margin-top: 20px;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>💰 Nueva Boleta Generada</h1>
+        </div>
+        <div class="content">
+            <p>Hola <strong>{{.NombreCliente}}</strong>,</p>
+            <p>Se ha generado una nueva boleta de consumo eléctrico:</p>
+            <div class="boleta-box">
+                <p><strong>Número de Boleta:</strong> #{{.NumeroBoleta}}</p>
+                <div class="amount">${{.Monto}}</div>
+                <p><strong>Fecha de Vencimiento:</strong> {{.FechaVencimiento}}</p>
+            </div>
+            <p>Puedes revisar el detalle completo y realizar el pago desde tu panel de cliente.</p>
+            <a href="https://electricautomaticchile.com/cliente" class="button">Ver Boleta</a>
+        </div>
+        <div class="footer">
+            <p>Electric Automatic Chile - Facturación</p>
+            <p>Este es un correo automático, por favor no responder.</p>
+        </div>
+    </div>
+</body>
+
+</html>

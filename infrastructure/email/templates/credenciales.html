@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="UTF-8">
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+        }
+
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #f97316 0%, #ea580c 100%);
+            color: white;
+            padding: 40px;
+            text-align: center;
+            border-radius: 10px 10px 0 0;
+        }
+
+        .content {
+            background: #f9fafb;
+            padding: 30px;
+            border-radius: 0 0 10px 10px;
+        }
+
+        .credentials-box {
+            background: white;
+            border: 2px solid #f97316;
+            padding: 25px;
+            margin: 20px 0;
+            border-radius: 8px;
+        }
+
+        .credential-item {
+            padding: 15px;
+            margin: 10px 0;
+            background: #fef3c7;
+            border-radius: 6px;
+        }
+
+        .credential-label {
+            font-size: 12px;
+            color: #92400e;
+            font-weight: bold;
+            text-transform: uppercase;
+        }
+
+        .credential-value {
+            font-size: 20px;
+            color: #1f2937;
+            font-weight: bold;
+            font-family: monospace;
+            margin-top: 5px;
+        }
+
+        .warning {
+            background: #fef2f2;
+            border-left: 4px solid #ef4444;
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 4px;
+        }
+
+        .footer {
+            text-align: center;
+            margin-top: 20px;
+            color: #6b7280;
+            font-size: 12px;
+        }
+
+        .button {
+            display: inline-block;
+            background: #f97316;
+            color: white;
+            padding: 12px 24px;
+            text-decoration: none;
+            border-radius: 6px;
+            margin-top: 20px;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🔑 Credenciales de Acceso</h1>
+            <p>Tu cuenta ha sido creada exitosamente</p>
+        </div>
+        <div class="content">
+            <p>Hola <strong>{{.NombreCliente}}</strong>,</p>
+            <p>Tu cuenta en Electric Automatic Chile ha sido creada. A continuación encontrarás tus credenciales de
+                acceso:</p>
+            <div class="credentials-box">
+                <div class="credential-item">
+                    <div class="credential-label">Número de Cliente</div>
+                    <div class="credential-value">{{.NumeroCliente}}</div>
+                </div>
+                <div class="credential-item">
+                    <div class="credential-label">Contraseña Temporal</div>
+                    <div class="credential-value">{{.PasswordTemporal}}</div>
+                </div>
+            </div>
+            <div class="warning">
+                <p><strong>⚠️ Importante - Seguridad:</strong></p>
+                <ul>
+                    <li>Esta es una contraseña temporal</li>
+                    <li>Debes cambiarla en tu primer inicio de sesión</li>
+                    <li>No compartas estas credenciales con nadie</li>
+                    <li>Guarda esta información en un lugar seguro</li>
+                </ul>
+            </div>
+            <center>
+                <a href="https://electricautomaticchile.com/login" class="button">Iniciar Sesión</a>
+            </center>
+        </div>
+        <div class="footer">
+            <p>Electric Automatic Chile - Sistema de Monitoreo Eléctrico</p>
+            <p>¿Necesitas ayuda? Contáctanos en soporte@electricautomaticchile.com</p>
+        </div>
+    </div>
+</body>
+
+</html>

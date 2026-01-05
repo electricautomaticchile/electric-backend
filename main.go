@@ -8,6 +8,7 @@ import (
 	"electric-backend/domain/services"
 	"electric-backend/infrastructure/arduino"
 	"electric-backend/infrastructure/data"
+	"electric-backend/infrastructure/email"
 	"electric-backend/infrastructure/middleware"
 	"electric-backend/infrastructure/websocket"
 	"electric-backend/types"
@@ -103,16 +104,17 @@ func main() {
 	cotizacionRepo := data.NewCotizacionRepository()
 
 	wsNotifierService := services.NewWebSocketNotifierService(wsHub)
+	emailService := email.NewResendService()
 	dashboardService := services.NewDashboardService(clienteRepo, dispositivoRepo, alertaRepo, ticketRepo)
 
-	authService := services.NewAuthService(empresaRepo, clienteRepo, recoveryTokenRepo)
-	clienteService := services.NewClienteService(clienteRepo)
+	authService := services.NewAuthService(empresaRepo, clienteRepo, recoveryTokenRepo, emailService)
+	clienteService := services.NewClienteService(clienteRepo, emailService)
 	empresaService := services.NewEmpresaService(empresaRepo)
 	dispositivoService := services.NewDispositivoService(dispositivoRepo, wsNotifierService)
 	notificacionService := services.NewNotificacionService(notificacionRepo, wsNotifierService)
 	alertaService := services.NewAlertaService(alertaRepo, wsNotifierService)
-	boletaService := services.NewBoletaService(boletaRepo)
-	ticketService := services.NewTicketService(ticketRepo, notificacionRepo)
+	boletaService := services.NewBoletaService(boletaRepo, clienteRepo, emailService)
+	ticketService := services.NewTicketService(ticketRepo, notificacionRepo, emailService, clienteRepo, empresaRepo)
 	configuracionService := services.NewConfiguracionService(configuracionRepo)
 	estadisticaService := services.NewEstadisticaService(estadisticaRepo)
 	cotizacionService := services.NewCotizacionService(cotizacionRepo)

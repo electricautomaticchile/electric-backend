@@ -5,7 +5,9 @@ import (
 	"electric-backend/api/v1/recipe"
 	"electric-backend/domain/models"
 	"electric-backend/domain/ports"
+	"electric-backend/infrastructure/email"
 	"electric-backend/infrastructure/entities"
+	"log"
 	"time"
 
 	"go.mongodb.org/mongo-driver/bson/primitive"
@@ -14,12 +16,18 @@ import (
 type TicketService struct {
 	ticketRepo       ports.PortTicket
 	notificacionRepo ports.PortNotificacion
+	emailService     *email.ResendService
+	clienteRepo      ports.PortCliente
+	empresaRepo      ports.PortEmpresa
 }
 
-func NewTicketService(ticketRepo ports.PortTicket, notificacionRepo ports.PortNotificacion) *TicketService {
+func NewTicketService(ticketRepo ports.PortTicket, notificacionRepo ports.PortNotificacion, emailService *email.ResendService, clienteRepo ports.PortCliente, empresaRepo ports.PortEmpresa) *TicketService {
 	return &TicketService{
 		ticketRepo:       ticketRepo,
 		notificacionRepo: notificacionRepo,
+		emailService:     emailService,
+		clienteRepo:      clienteRepo,
+		empresaRepo:      empresaRepo,
 	}
 }
 
@@ -125,9 +133,42 @@ func (s *TicketService) AgregarRespuesta(ctx context.Context, id string, r *reci
 			FechaCreacion:  time.Now(),
 		}
 		s.notificacionRepo.Create(ctx, notificacion)
+
+		go s.enviarEmailRespuestaTicket(ctx, destinatarioID.Hex(), ticket.NumeroTicket, ticket.Titulo, r.Mensaje)
 	}
 
 	return nil
+}
+
+func (s *TicketService) enviarEmailRespuestaTicket(ctx context.Context, destinatarioID, numeroTicket, asunto, mensaje string) {
+	cliente, err := s.clienteRepo.FindByID(ctx, destinatarioID)
+	if err == nil && cliente.Correo != "" {
+		err = s.emailService.EnviarNotificacionTicket(
+			cliente.Correo,
+			cliente.Nombre,
+			numeroTicket,
+			asunto,
+			mensaje,
+		)
+		if err != nil {
+			log.Printf("Error enviando email de ticket: %v", err)
+		}
+		return
+	}
+
+	empresa, err := s.empresaRepo.FindByID(ctx, destinatarioID)
+	if err == nil && empresa.Correo != "" {
+		err = s.emailService.EnviarNotificacionTicket(
+			empresa.Correo,
+			empresa.NombreEmpresa,
+			numeroTicket,
+			asunto,
+			mensaje,
+		)
+		if err != nil {
+			log.Printf("Error enviando email de ticket: %v", err)
+		}
+	}
 }
 
 func (s *TicketService) ActualizarEstado(ctx context.Context, id string, r *recipe.ActualizarEstadoTicketRecipe) error {

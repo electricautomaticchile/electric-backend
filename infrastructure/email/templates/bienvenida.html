@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="UTF-8">
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+        }
+
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #f97316 0%, #ea580c 100%);
+            color: white;
+            padding: 40px;
+            text-align: center;
+            border-radius: 10px 10px 0 0;
+        }
+
+        .content {
+            background: #f9fafb;
+            padding: 30px;
+            border-radius: 0 0 10px 10px;
+        }
+
+        .features {
+            background: white;
+            border-radius: 8px;
+            padding: 20px;
+            margin: 20px 0;
+        }
+
+        .feature {
+            padding: 10px 0;
+            border-bottom: 1px solid #e5e7eb;
+        }
+
+        .feature:last-child {
+            border-bottom: none;
+        }
+
+        .footer {
+            text-align: center;
+            margin-top: 20px;
+            color: #6b7280;
+            font-size: 12px;
+        }
+
+        .button {
+            display: inline-block;
+            background: #f97316;
+            color: white;
+            padding: 12px 24px;
+            text-decoration: none;
+            border-radius: 6px;
+            margin-top: 20px;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🎉 ¡Bienvenido!</h1>
+            <p>Gracias por unirte a Electric Automatic Chile</p>
+        </div>
+        <div class="content">
+            <p>Hola <strong>{{.NombreUsuario}}</strong>,</p>
+            <p>Tu cuenta ha sido creada exitosamente. Ahora puedes acceder a todas las funcionalidades de nuestra
+                plataforma:</p>
+            <div class="features">
+                <div class="feature">⚡ Monitoreo en tiempo real de consumo eléctrico</div>
+                <div class="feature">📊 Estadísticas y reportes detallados</div>
+                <div class="feature">🔔 Alertas automáticas de anomalías</div>
+                <div class="feature">💰 Gestión de boletas y pagos</div>
+                <div class="feature">🎫 Sistema de soporte técnico</div>
+            </div>
+            <center>
+                <a href="{{.DashboardURL}}" class="button">Ir al Dashboard</a>
+            </center>
+        </div>
+        <div class="footer">
+            <p>Electric Automatic Chile - Sistema de Monitoreo Eléctrico</p>
+            <p>¿Necesitas ayuda? Contáctanos en soporte@electricautomaticchile.com</p>
+        </div>
+    </div>
+</body>
+
+</html>

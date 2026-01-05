@@ -10,6 +10,7 @@ type PortCliente interface {
 	FindByID(ctx context.Context, id string) (*models.ClienteModel, error)
 	FindByNumero(ctx context.Context, numeroCliente string) (*models.ClienteModel, error)
 	FindByNumeroCliente(ctx context.Context, numeroCliente string) (*models.ClienteModel, error)
+	FindByCorreo(ctx context.Context, correo string) (*models.ClienteModel, error)
 	Create(ctx context.Context, cliente *models.ClienteModel) error
 	Update(ctx context.Context, id string, cliente *models.ClienteModel) error
 	UpdateUltimoAcceso(ctx context.Context, id string) error
