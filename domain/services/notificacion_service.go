@@ -6,6 +6,7 @@ import (
 	"electric-backend/domain/models"
 	"electric-backend/domain/ports"
 	"electric-backend/infrastructure/entities"
+	"electric-backend/infrastructure/validation"
 
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )
@@ -53,8 +54,8 @@ func (s *NotificacionService) Crear(ctx context.Context, r *recipe.CrearNotifica
 
 	entity := &entities.NotificacionEntity{
 		DestinatarioID: destinatarioID,
-		Titulo:         r.Titulo,
-		Mensaje:        r.Mensaje,
+		Titulo:         validation.SanitizeString(r.Titulo),
+		Mensaje:        validation.SanitizeString(r.Mensaje),
 		Tipo:           r.Tipo,
 	}
 

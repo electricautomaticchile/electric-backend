@@ -5,6 +5,7 @@ import (
 	"electric-backend/api/v1/recipe"
 	"electric-backend/domain/models"
 	"electric-backend/domain/ports"
+	"electric-backend/infrastructure/validation"
 )
 
 type AlertaService struct {
@@ -35,8 +36,8 @@ func (s *AlertaService) Crear(ctx context.Context, r *recipe.CrearAlertaRecipe) 
 	model := &models.AlertaModel{
 		EmpresaID:   r.EmpresaID,
 		Tipo:        r.Tipo,
-		Titulo:      r.Mensaje,
-		Mensaje:     r.Mensaje,
+		Titulo:      validation.SanitizeString(r.Mensaje),
+		Mensaje:     validation.SanitizeString(r.Mensaje),
 		Dispositivo: r.DispositivoID,
 	}
 
@@ -48,7 +49,7 @@ func (s *AlertaService) Crear(ctx context.Context, r *recipe.CrearAlertaRecipe) 
 }
 
 func (s *AlertaService) Resolver(ctx context.Context, id string, r *recipe.ResolverAlertaRecipe) error {
-	return s.alertaRepo.Resolver(ctx, id, r.Resolucion)
+	return s.alertaRepo.Resolver(ctx, id, validation.SanitizeString(r.Resolucion))
 }
 
 func (s *AlertaService) Eliminar(ctx context.Context, id string) error {

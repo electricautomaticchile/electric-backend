@@ -4,6 +4,7 @@ import (
 	"context"
 	"electric-backend/domain/models"
 	"electric-backend/domain/ports"
+	"electric-backend/infrastructure/validation"
 )
 
 type CotizacionService struct {
@@ -29,7 +30,6 @@ func (s *CotizacionService) ObtenerPorNumero(ctx context.Context, numero string)
 }
 
 func (s *CotizacionService) Crear(ctx context.Context, nombre, email, empresa, telefono, servicio, plazo, mensaje string) (*models.CotizacionModel, error) {
-	// Asignar prioridad basada en plazo
 	prioridad := "baja"
 	switch plazo {
 	case "urgente":
@@ -41,13 +41,13 @@ func (s *CotizacionService) Crear(ctx context.Context, nombre, email, empresa, t
 	}
 
 	model := &models.CotizacionModel{
-		Nombre:    nombre,
-		Email:     email,
-		Empresa:   empresa,
+		Nombre:    validation.SanitizeString(nombre),
+		Email:     validation.SanitizeEmail(email),
+		Empresa:   validation.SanitizeString(empresa),
 		Telefono:  telefono,
-		Servicio:  servicio,
+		Servicio:  validation.SanitizeString(servicio),
 		Plazo:     plazo,
-		Mensaje:   mensaje,
+		Mensaje:   validation.SanitizeString(mensaje),
 		Prioridad: prioridad,
 	}
 
@@ -65,13 +65,13 @@ func (s *CotizacionService) Actualizar(ctx context.Context, id string, updates m
 	}
 
 	if nombre, ok := updates["nombre"].(string); ok && nombre != "" {
-		cotizacion.Nombre = nombre
+		cotizacion.Nombre = validation.SanitizeString(nombre)
 	}
 	if email, ok := updates["email"].(string); ok && email != "" {
-		cotizacion.Email = email
+		cotizacion.Email = validation.SanitizeEmail(email)
 	}
 	if empresa, ok := updates["empresa"].(string); ok {
-		cotizacion.Empresa = empresa
+		cotizacion.Empresa = validation.SanitizeString(empresa)
 	}
 	if telefono, ok := updates["telefono"].(string); ok {
 		cotizacion.Telefono = telefono

@@ -7,6 +7,7 @@ import (
 	"electric-backend/domain/ports"
 	"electric-backend/infrastructure/email"
 	"electric-backend/infrastructure/entities"
+	"electric-backend/infrastructure/validation"
 	"log"
 	"time"
 
@@ -66,8 +67,8 @@ func (s *TicketService) Crear(ctx context.Context, r *recipe.CrearTicketRecipe) 
 	}
 
 	entity := &entities.TicketEntity{
-		Titulo:      r.Asunto,
-		Descripcion: r.Descripcion,
+		Titulo:      validation.SanitizeString(r.Asunto),
+		Descripcion: validation.SanitizeString(r.Descripcion),
 		Prioridad:   prioridad,
 		Categoria:   categoria,
 	}
@@ -103,7 +104,7 @@ func (s *TicketService) Crear(ctx context.Context, r *recipe.CrearTicketRecipe) 
 
 func (s *TicketService) AgregarRespuesta(ctx context.Context, id string, r *recipe.AgregarRespuestaRecipe, usuarioID string) error {
 	respuesta := &entities.RespuestaTicket{
-		Mensaje:   r.Mensaje,
+		Mensaje:   validation.SanitizeString(r.Mensaje),
 		UsuarioID: usuarioID,
 	}
 

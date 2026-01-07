@@ -5,6 +5,7 @@ import (
 	"electric-backend/api/v1/recipe"
 	"electric-backend/domain/models"
 	"electric-backend/domain/ports"
+	"electric-backend/infrastructure/validation"
 )
 
 type EmpresaService struct {
@@ -26,12 +27,22 @@ func (s *EmpresaService) ObtenerPorID(ctx context.Context, id string) (*models.E
 }
 
 func (s *EmpresaService) Crear(ctx context.Context, r *recipe.CrearEmpresaRecipe) (*models.EmpresaModel, error) {
+	rutNormalizado := ""
+	if r.RUT != "" {
+		rutNormalizado = validation.NormalizarRUT(r.RUT)
+	}
+
+	telefonoNormalizado := ""
+	if r.Telefono != "" {
+		telefonoNormalizado = validation.NormalizarTelefono(r.Telefono)
+	}
+
 	model := &models.EmpresaModel{
-		NombreEmpresa: r.Nombre,
-		Correo:        r.Email,
-		Telefono:      r.Telefono,
-		Direccion:     r.Direccion,
-		Rut:           r.RUT,
+		NombreEmpresa: validation.SanitizeString(r.Nombre),
+		Correo:        validation.SanitizeEmail(r.Email),
+		Telefono:      telefonoNormalizado,
+		Direccion:     validation.SanitizeString(r.Direccion),
+		Rut:           rutNormalizado,
 	}
 
 	if err := s.empresaRepo.Create(ctx, model); err != nil {
@@ -48,19 +59,19 @@ func (s *EmpresaService) Actualizar(ctx context.Context, id string, r *recipe.Ac
 	}
 
 	if r.Nombre != "" {
-		empresa.NombreEmpresa = r.Nombre
+		empresa.NombreEmpresa = validation.SanitizeString(r.Nombre)
 	}
 	if r.Email != "" {
-		empresa.Correo = r.Email
+		empresa.Correo = validation.SanitizeEmail(r.Email)
 	}
 	if r.Telefono != "" {
-		empresa.Telefono = r.Telefono
+		empresa.Telefono = validation.NormalizarTelefono(r.Telefono)
 	}
 	if r.Direccion != "" {
-		empresa.Direccion = r.Direccion
+		empresa.Direccion = validation.SanitizeString(r.Direccion)
 	}
 	if r.RUT != "" {
-		empresa.Rut = r.RUT
+		empresa.Rut = validation.NormalizarRUT(r.RUT)
 	}
 
 	if err := s.empresaRepo.Update(ctx, id, empresa); err != nil {

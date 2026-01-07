@@ -9,6 +9,7 @@ import (
 	"electric-backend/domain/ports"
 	"electric-backend/infrastructure/email"
 	"electric-backend/infrastructure/entities"
+	"electric-backend/infrastructure/validation"
 	"electric-backend/types"
 	"encoding/hex"
 	"fmt"
@@ -36,7 +37,7 @@ func NewAuthService(empresaRepo ports.PortEmpresa, clienteRepo ports.PortCliente
 }
 
 func (s *AuthService) Login(ctx context.Context, r *recipe.LoginRecipe) (*models.LoginResponseModel, error) {
-	numeroCliente := r.NumeroCliente
+	numeroCliente := validation.SanitizeNumeroCliente(r.NumeroCliente)
 
 	if numeroCliente == "" {
 		return nil, types.ThrowRecipe("Número de cliente es requerido", "numeroCliente")
@@ -226,7 +227,9 @@ func (s *AuthService) generarTokenRecuperacion() string {
 }
 
 func (s *AuthService) RegistrarEmpresa(ctx context.Context, r *recipe.RegistroEmpresaRecipe) (*models.EmpresaModel, error) {
-	existente, _ := s.empresaRepo.FindByNumeroCliente(ctx, r.Rut)
+	rutNormalizado := validation.NormalizarRUT(r.Rut)
+	
+	existente, _ := s.empresaRepo.FindByNumeroCliente(ctx, rutNormalizado)
 	if existente != nil {
 		return nil, types.ThrowData("Ya existe una empresa con este RUT")
 	}
@@ -240,19 +243,19 @@ func (s *AuthService) RegistrarEmpresa(ctx context.Context, r *recipe.RegistroEm
 	numeroCliente := s.generarNumeroCliente()
 
 	empresa := &models.EmpresaModel{
-		NombreEmpresa: r.NombreEmpresa,
-		RazonSocial:   r.RazonSocial,
-		Rut:           r.Rut,
-		Correo:        r.Correo,
-		Telefono:      r.Telefono,
-		Direccion:     r.Direccion,
-		Ciudad:        r.Ciudad,
-		Region:        r.Region,
+		NombreEmpresa: validation.SanitizeString(r.NombreEmpresa),
+		RazonSocial:   validation.SanitizeString(r.RazonSocial),
+		Rut:           rutNormalizado,
+		Correo:        validation.SanitizeEmail(r.Correo),
+		Telefono:      validation.NormalizarTelefono(r.Telefono),
+		Direccion:     validation.SanitizeString(r.Direccion),
+		Ciudad:        validation.SanitizeString(r.Ciudad),
+		Region:        validation.SanitizeString(r.Region),
 		ContactoPrincipal: models.ContactoPrincipal{
-			Nombre:   r.ContactoPrincipal.Nombre,
-			Cargo:    r.ContactoPrincipal.Cargo,
-			Telefono: r.ContactoPrincipal.Telefono,
-			Correo:   r.ContactoPrincipal.Correo,
+			Nombre:   validation.SanitizeString(r.ContactoPrincipal.Nombre),
+			Cargo:    validation.SanitizeString(r.ContactoPrincipal.Cargo),
+			Telefono: validation.NormalizarTelefono(r.ContactoPrincipal.Telefono),
+			Correo:   validation.SanitizeEmail(r.ContactoPrincipal.Correo),
 		},
 		NumeroCliente:    numeroCliente,
 		Password:         string(hashedPassword),

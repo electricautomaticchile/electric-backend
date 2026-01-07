@@ -6,6 +6,7 @@ import (
 	"electric-backend/domain/models"
 	"electric-backend/domain/ports"
 	"electric-backend/infrastructure/email"
+	"electric-backend/infrastructure/validation"
 	"electric-backend/types"
 	"fmt"
 	"log"
@@ -58,16 +59,26 @@ func (s *ClienteService) Crear(ctx context.Context, r *recipe.CrearClienteRecipe
 		return nil, err
 	}
 
+	rutNormalizado := ""
+	if r.Rut != "" {
+		rutNormalizado = validation.NormalizarRUT(r.Rut)
+	}
+
+	telefonoNormalizado := ""
+	if r.Telefono != "" {
+		telefonoNormalizado = validation.NormalizarTelefono(r.Telefono)
+	}
+
 	model := &models.ClienteModel{
-		Nombre:           r.Nombre,
-		Correo:           r.Correo,
-		NumeroCliente:    numeroCliente,
-		Telefono:         r.Telefono,
-		Direccion:        r.Direccion,
-		Ciudad:           r.Ciudad,
-		Rut:              r.Rut,
+		Nombre:           validation.SanitizeString(r.Nombre),
+		Correo:           validation.SanitizeEmail(r.Correo),
+		NumeroCliente:    validation.SanitizeNumeroCliente(numeroCliente),
+		Telefono:         telefonoNormalizado,
+		Direccion:        validation.SanitizeString(r.Direccion),
+		Ciudad:           validation.SanitizeString(r.Ciudad),
+		Rut:              rutNormalizado,
 		TipoCliente:      r.TipoCliente,
-		Empresa:          r.Empresa,
+		Empresa:          validation.SanitizeString(r.Empresa),
 		EmpresaID:        r.EmpresaID,
 		Password:         string(hashedPassword),
 		PasswordTemporal: passwordTemporal,
@@ -133,22 +144,22 @@ func (s *ClienteService) Actualizar(ctx context.Context, id string, r *recipe.Ac
 	}
 
 	if r.Nombre != "" {
-		cliente.Nombre = r.Nombre
+		cliente.Nombre = validation.SanitizeString(r.Nombre)
 	}
 	if r.Correo != "" {
-		cliente.Correo = r.Correo
+		cliente.Correo = validation.SanitizeEmail(r.Correo)
 	}
 	if r.Telefono != "" {
-		cliente.Telefono = r.Telefono
+		cliente.Telefono = validation.NormalizarTelefono(r.Telefono)
 	}
 	if r.Direccion != "" {
-		cliente.Direccion = r.Direccion
+		cliente.Direccion = validation.SanitizeString(r.Direccion)
 	}
 	if r.Ciudad != "" {
-		cliente.Ciudad = r.Ciudad
+		cliente.Ciudad = validation.SanitizeString(r.Ciudad)
 	}
 	if r.Rut != "" {
-		cliente.Rut = r.Rut
+		cliente.Rut = validation.NormalizarRUT(r.Rut)
 	}
 	if r.Activo != nil {
 		cliente.Activo = *r.Activo

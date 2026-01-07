@@ -11,6 +11,7 @@ import (
 	"electric-backend/infrastructure/data"
 	"electric-backend/infrastructure/email"
 	"electric-backend/infrastructure/middleware"
+	"electric-backend/infrastructure/validation"
 	"electric-backend/infrastructure/websocket"
 	"electric-backend/types"
 	"log"
@@ -21,6 +22,8 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/gin-gonic/gin/binding"
+	"github.com/go-playground/validator/v10"
 )
 
 func main() {
@@ -28,6 +31,24 @@ func main() {
 
 	if config.AppConfig.Environment == "production" {
 		gin.SetMode(gin.ReleaseMode)
+	}
+
+	if v, ok := binding.Validator.Engine().(*validator.Validate); ok {
+		v.RegisterValidation("rut", func(fl validator.FieldLevel) bool {
+			return validation.ValidarRUT(fl.Field().String())
+		})
+		v.RegisterValidation("password_strong", func(fl validator.FieldLevel) bool {
+			return validation.ValidarPassword(fl.Field().String()) == nil
+		})
+		v.RegisterValidation("telefono_cl", func(fl validator.FieldLevel) bool {
+			return validation.ValidarTelefonoChileno(fl.Field().String())
+		})
+		v.RegisterValidation("periodo", func(fl validator.FieldLevel) bool {
+			return validation.ValidarPeriodo(fl.Field().String())
+		})
+		v.RegisterValidation("numero_cliente", func(fl validator.FieldLevel) bool {
+			return validation.ValidarNumeroCliente(fl.Field().String())
+		})
 	}
 
 	if err := config.ConnectDatabase(config.AppConfig.MongoURI); err != nil {
@@ -53,6 +74,61 @@ func main() {
 	router.Use(middleware.CORSMiddleware())
 	router.Use(middleware.AuditMiddleware(auditLogService))
 	router.Use(middleware.ErrorHandler())
+
+	rateLimits := map[string]int{
+		"POST:/api/auth/login":                    5,
+		"POST:/api/auth/register":                 3,
+		"POST:/api/auth/recovery":                 3,
+		"POST:/api/auth/reset-password":           3,
+		"POST:/api/auth/cambiar-password":         10,
+		"POST:/api/auth/refresh-token":            20,
+		
+		"GET:/api/clientes":                       60,
+		"POST:/api/clientes":                      20,
+		"PUT:/api/clientes/:id":                   30,
+		"DELETE:/api/clientes/:id":                10,
+		"GET:/api/clientes/:id":                   100,
+		
+		"GET:/api/dispositivos":                   120,
+		"POST:/api/dispositivos":                  20,
+		"PUT:/api/dispositivos/:id":               60,
+		"POST:/api/dispositivos/lectura":          300,
+		"POST:/api/dispositivos/control":          30,
+		
+		"GET:/api/alertas":                        100,
+		"POST:/api/alertas":                       50,
+		"PUT:/api/alertas/:id":                    40,
+		"DELETE:/api/alertas/:id":                 20,
+		
+		"GET:/api/boletas":                        60,
+		"POST:/api/boletas":                       10,
+		"GET:/api/boletas/:id":                    100,
+		
+		"GET:/api/tickets":                        60,
+		"POST:/api/tickets":                       10,
+		"POST:/api/tickets/:id/responder":         20,
+		"PUT:/api/tickets/:id":                    30,
+		
+		"GET:/api/dashboard/empresa":              120,
+		"GET:/api/dashboard/cliente":              120,
+		"GET:/api/estadisticas/*":                 100,
+		
+		"GET:/api/export/*":                       5,
+		
+		"GET:/api/mapa/dispositivos":              60,
+		"GET:/api/mapa/ubicacion/:id":             100,
+		"POST:/api/mapa/actualizar":               30,
+		
+		"GET:/api/tarifas":                        30,
+		"POST:/api/tarifas":                       5,
+		"PUT:/api/tarifas/:id":                    10,
+		
+		"POST:/api/imagenes-perfil/upload":        10,
+		"GET:/api/imagenes-perfil/:id":            100,
+		"DELETE:/api/imagenes-perfil/:id":         10,
+	}
+
+	router.Use(middleware.EndpointRateLimitMiddleware(rateLimits))
 
 	wsHub := websocket.InitializeHub()
 	
