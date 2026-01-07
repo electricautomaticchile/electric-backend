@@ -11,6 +11,7 @@ import (
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
 type AlertaRepository struct {
@@ -102,6 +103,58 @@ func (r *AlertaRepository) FindAll(ctx context.Context) ([]*models.AlertaModel, 
 		alertas[i] = r.entityToModel(entity)
 	}
 	return alertas, nil
+}
+
+func (r *AlertaRepository) FindAllPaginated(ctx context.Context, empresaID string, params types.PaginationParams, filters types.FilterParams) ([]*models.AlertaModel, int64, error) {
+	filter := filters.BuildMongoFilter()
+	
+	if empresaID != "" {
+		empresaObjectID, err := primitive.ObjectIDFromHex(empresaID)
+		if err == nil {
+			filter["empresaId"] = empresaObjectID
+		}
+	}
+
+	total, err := r.collection.CountDocuments(ctx, filter)
+	if err != nil {
+		return []*models.AlertaModel{}, 0, err
+	}
+
+	opts := options.Find()
+	opts.SetSkip(int64(params.GetSkip()))
+	opts.SetLimit(int64(params.GetLimit()))
+	
+	if params.SortBy != "" {
+		sortOrder := 1
+		if params.SortDir == "desc" {
+			sortOrder = -1
+		}
+		opts.SetSort(bson.D{{Key: params.SortBy, Value: sortOrder}})
+	} else {
+		opts.SetSort(bson.D{{Key: "fechaCreacion", Value: -1}})
+	}
+
+	cursor, err := r.collection.Find(ctx, filter, opts)
+	if err != nil {
+		return []*models.AlertaModel{}, 0, err
+	}
+	defer cursor.Close(ctx)
+
+	var entities []*entities.AlertaEntity
+	if err := cursor.All(ctx, &entities); err != nil {
+		return []*models.AlertaModel{}, 0, err
+	}
+
+	if entities == nil {
+		return []*models.AlertaModel{}, total, nil
+	}
+
+	alertas := make([]*models.AlertaModel, len(entities))
+	for i, entity := range entities {
+		alertas[i] = r.entityToModel(entity)
+	}
+
+	return alertas, total, nil
 }
 
 func (r *AlertaRepository) FindActivas(ctx context.Context) ([]*models.AlertaModel, error) {

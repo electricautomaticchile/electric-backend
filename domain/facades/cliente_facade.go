@@ -5,6 +5,7 @@ import (
 	"electric-backend/api/v1/recipe"
 	"electric-backend/domain/models"
 	"electric-backend/domain/services"
+	"electric-backend/types"
 )
 
 type ClienteFacade struct {
@@ -19,6 +20,10 @@ func NewClienteFacade(clienteService *services.ClienteService) *ClienteFacade {
 
 func (f *ClienteFacade) ObtenerTodos(ctx context.Context, empresaID string) ([]*models.ClienteModel, error) {
 	return f.clienteService.ObtenerTodos(ctx, empresaID)
+}
+
+func (f *ClienteFacade) ObtenerTodosPaginado(ctx context.Context, empresaID string, params types.PaginationParams, filters types.FilterParams) ([]*models.ClienteModel, int64, error) {
+	return f.clienteService.ObtenerTodosPaginado(ctx, empresaID, params, filters)
 }
 
 func (f *ClienteFacade) ObtenerPorID(ctx context.Context, id string) (*models.ClienteModel, error) {

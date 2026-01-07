@@ -19,6 +19,7 @@ type EmpresaModel struct {
 	Direccion          string             `json:"direccion" binding:"required"`
 	Ciudad             string             `json:"ciudad" binding:"required"`
 	Region             string             `json:"region" binding:"required"`
+	ImagenPerfil       string             `json:"imagenPerfil,omitempty"`
 	ContactoPrincipal  ContactoPrincipal  `json:"contactoPrincipal" binding:"required"`
 	NumeroCliente      string             `json:"numeroCliente"`
 	Password           string             `json:"-"` // No exponer en JSON

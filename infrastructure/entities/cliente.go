@@ -18,6 +18,7 @@ type ClienteEntity struct {
 	Latitud            float64            `bson:"latitud,omitempty" json:"latitud,omitempty"`
 	Longitud           float64            `bson:"longitud,omitempty" json:"longitud,omitempty"`
 	Rut                string             `bson:"rut,omitempty" json:"rut,omitempty"`
+	ImagenPerfil       string             `bson:"imagenPerfil,omitempty" json:"imagenPerfil,omitempty"`
 	TipoCliente        string             `bson:"tipoCliente,omitempty" json:"tipoCliente,omitempty"`
 	Empresa            string             `bson:"empresa,omitempty" json:"empresa,omitempty"`
 	Role               string             `bson:"role,omitempty" json:"role,omitempty"`

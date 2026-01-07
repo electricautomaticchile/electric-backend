@@ -7,6 +7,7 @@ import (
 	"electric-backend/domain/facades"
 	"electric-backend/domain/services"
 	"electric-backend/infrastructure/arduino"
+	"electric-backend/infrastructure/aws"
 	"electric-backend/infrastructure/data"
 	"electric-backend/infrastructure/email"
 	"electric-backend/infrastructure/middleware"
@@ -44,9 +45,13 @@ func main() {
 	}
 	defer config.DisconnectRedis()
 
+	auditLogRepo := data.NewAuditLogRepository()
+	auditLogService := services.NewAuditLogService(auditLogRepo)
+
 	router := gin.Default()
 
 	router.Use(middleware.CORSMiddleware())
+	router.Use(middleware.AuditMiddleware(auditLogService))
 	router.Use(middleware.ErrorHandler())
 
 	wsHub := websocket.InitializeHub()
@@ -102,10 +107,18 @@ func main() {
 	configuracionRepo := data.NewConfiguracionRepository()
 	estadisticaRepo := data.NewEstadisticaRepository()
 	cotizacionRepo := data.NewCotizacionRepository()
+	tarifaRepo := data.NewTarifaRepository()
 
 	wsNotifierService := services.NewWebSocketNotifierService(wsHub)
 	emailService := email.NewResendService()
 	dashboardService := services.NewDashboardService(clienteRepo, dispositivoRepo, alertaRepo, ticketRepo)
+	
+	s3Service, err := aws.NewS3Service(config.AppConfig)
+	if err != nil {
+		log.Printf("⚠️ Error inicializando S3: %v", err)
+	}
+	imagenPerfilService := services.NewImagenPerfilService(clienteRepo, empresaRepo, s3Service)
+	exportService := services.NewExportService(clienteRepo, dispositivoRepo, alertaRepo, boletaRepo)
 
 	authService := services.NewAuthService(empresaRepo, clienteRepo, recoveryTokenRepo, emailService)
 	clienteService := services.NewClienteService(clienteRepo, emailService)
@@ -121,6 +134,8 @@ func main() {
 	alertaAutomaticaService := services.NewAlertaAutomaticaService(alertaRepo, dispositivoRepo, notificacionRepo, empresaRepo)
 	reporteService := services.NewReporteService(clienteRepo, empresaRepo, dispositivoRepo, boletaRepo)
 	antifraudeService := services.NewAntifraudeService(dispositivoRepo, clienteRepo, alertaRepo, notificacionRepo)
+	tarifaService := services.NewTarifaService(tarifaRepo)
+	consumoService := services.NewConsumoService(clienteRepo, tarifaRepo)
 
 	// Inicializar facades
 	authFacade := facades.NewAuthFacade(authService)
@@ -149,6 +164,11 @@ func main() {
 	mapaController := controllers.NewMapaController(dispositivoService, clienteService)
 	antifraudeController := controllers.NewAntifraudeController(antifraudeService)
 	dashboardController := controllers.NewDashboardController(dashboardService)
+	imagenPerfilController := controllers.NewImagenPerfilController(imagenPerfilService)
+	exportController := controllers.NewExportController(exportService)
+	auditLogController := controllers.NewAuditLogController(auditLogService)
+	tarifaController := controllers.NewTarifaController(tarifaService)
+	consumoController := controllers.NewConsumoController(consumoService)
 
 	api := router.Group("/api")
 	{
@@ -187,6 +207,11 @@ func main() {
 		setupMapaRoutes(api, mapaController)
 		setupAntifraudeRoutes(api, antifraudeController)
 		setupDashboardRoutes(api, dashboardController)
+		setupImagenPerfilRoutes(api, imagenPerfilController)
+		setupExportRoutes(api, exportController)
+		setupAuditLogRoutes(api, auditLogController)
+		setupTarifaRoutes(api, tarifaController)
+		setupConsumoRoutes(api, consumoController)
 	}
 
 	ctx := context.Background()
@@ -364,5 +389,63 @@ func setupDashboardRoutes(router *gin.RouterGroup, ctrl *controllers.DashboardCo
 	dashboard.Use(middleware.AuthMiddleware())
 	{
 		dashboard.GET("/estadisticas", ctrl.ObtenerEstadisticas)
+	}
+}
+
+func setupImagenPerfilRoutes(router *gin.RouterGroup, ctrl *controllers.ImagenPerfilController) {
+	imagenes := router.Group("/imagenes-perfil")
+	imagenes.Use(middleware.AuthMiddleware())
+	{
+		imagenes.POST("/upload", ctrl.SubirYActualizarImagen)
+		imagenes.GET("/:tipoUsuario/:userId", ctrl.ObtenerImagenPerfil)
+		imagenes.DELETE("/:tipoUsuario/:userId", ctrl.EliminarImagenPerfil)
+	}
+}
+
+func setupExportRoutes(router *gin.RouterGroup, ctrl *controllers.ExportController) {
+	export := router.Group("/export")
+	export.Use(middleware.AuthMiddleware())
+	{
+		export.GET("/clientes/excel", ctrl.ExportarClientesExcel)
+		export.GET("/clientes/pdf", ctrl.ExportarClientesPDF)
+		export.GET("/dispositivos/excel", ctrl.ExportarDispositivosExcel)
+		export.GET("/dispositivos/pdf", ctrl.ExportarDispositivosPDF)
+		export.GET("/alertas/excel", ctrl.ExportarAlertasExcel)
+		export.GET("/boletas/excel", ctrl.ExportarBoletasExcel)
+		export.GET("/boletas/:id/pdf", ctrl.ExportarBoletaPDF)
+	}
+}
+
+func setupAuditLogRoutes(router *gin.RouterGroup, ctrl *controllers.AuditLogController) {
+	audit := router.Group("/audit-logs")
+	audit.Use(middleware.AuthMiddleware())
+	{
+		audit.GET("", ctrl.GetLogs)
+		audit.GET("/user/:userId", ctrl.GetUserLogs)
+		audit.GET("/resource/:resource/:resourceId", ctrl.GetResourceHistory)
+		audit.GET("/statistics", ctrl.GetStatistics)
+		audit.DELETE("/clean", ctrl.CleanOldLogs)
+	}
+}
+
+func setupTarifaRoutes(router *gin.RouterGroup, ctrl *controllers.TarifaController) {
+	tarifas := router.Group("/tarifas")
+	tarifas.Use(middleware.AuthMiddleware())
+	{
+		tarifas.GET("", ctrl.ObtenerTodas)
+		tarifas.GET("/activa", ctrl.ObtenerActiva)
+		tarifas.GET("/:id", ctrl.ObtenerPorID)
+		tarifas.POST("", ctrl.Crear)
+		tarifas.PUT("/:id", ctrl.Actualizar)
+		tarifas.DELETE("/:id", ctrl.Eliminar)
+		tarifas.POST("/calcular", ctrl.CalcularConsumo)
+	}
+}
+
+func setupConsumoRoutes(router *gin.RouterGroup, ctrl *controllers.ConsumoController) {
+	consumo := router.Group("/consumo")
+	consumo.Use(middleware.AuthMiddleware())
+	{
+		consumo.GET("/cliente/:clienteId/calcular", ctrl.CalcularCostoActual)
 	}
 }

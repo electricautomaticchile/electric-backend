@@ -6,6 +6,7 @@ import (
 	"electric-backend/infrastructure/middleware"
 	"electric-backend/types"
 	"net/http"
+	"strconv"
 
 	"github.com/gin-gonic/gin"
 )
@@ -41,6 +42,12 @@ func (ctrl *ClienteController) ObtenerTodos(gctx *gin.Context) {
 		return
 	}
 
+	paginated := gctx.Query("paginated")
+	if paginated == "true" {
+		ctrl.ObtenerTodosPaginado(gctx)
+		return
+	}
+
 	clientes, err := ctrl.clienteFacade.ObtenerTodos(gctx.Request.Context(), empresaID.(string))
 	if err != nil {
 		gctx.Error(err)
@@ -50,6 +57,52 @@ func (ctrl *ClienteController) ObtenerTodos(gctx *gin.Context) {
 	gctx.JSON(http.StatusOK, types.ApiResponse{
 		Success: true,
 		Data:    clientes,
+	})
+}
+
+func (ctrl *ClienteController) ObtenerTodosPaginado(gctx *gin.Context) {
+	empresaID := gctx.Request.Context().Value(types.ContextKeyEmpresaID)
+	if empresaID == nil {
+		gctx.Error(types.ThrowPower("No tienes acceso a esta empresa"))
+		return
+	}
+
+	page := 1
+	pageSize := 10
+	sortBy := gctx.DefaultQuery("sortBy", "fechaCreacion")
+	sortDir := gctx.DefaultQuery("sortDir", "desc")
+
+	if p := gctx.Query("page"); p != "" {
+		if val, err := strconv.Atoi(p); err == nil {
+			page = val
+		}
+	}
+	if ps := gctx.Query("pageSize"); ps != "" {
+		if val, err := strconv.Atoi(ps); err == nil {
+			pageSize = val
+		}
+	}
+
+	filters := types.FilterParams{
+		Search:   gctx.Query("search"),
+		DateFrom: gctx.Query("dateFrom"),
+		DateTo:   gctx.Query("dateTo"),
+		Active:   types.ParseBoolPtr(gctx.Query("active")),
+		Status:   gctx.Query("status"),
+		Type:     gctx.Query("type"),
+	}
+
+	params := types.NewPaginationParams(page, pageSize, sortBy, sortDir)
+	clientes, total, err := ctrl.clienteFacade.ObtenerTodosPaginado(gctx.Request.Context(), empresaID.(string), params, filters)
+	if err != nil {
+		gctx.Error(err)
+		return
+	}
+
+	response := types.NewPaginatedResponse(clientes, page, pageSize, total)
+	gctx.JSON(http.StatusOK, types.ApiResponse{
+		Success: true,
+		Data:    response,
 	})
 }
 

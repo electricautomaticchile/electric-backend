@@ -10,6 +10,7 @@ import (
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
 type DispositivoRepository struct {
@@ -44,6 +45,53 @@ func (r *DispositivoRepository) FindAll(ctx context.Context, empresaID string) (
 	}
 
 	return dispositivos, nil
+}
+
+func (r *DispositivoRepository) FindAllPaginated(ctx context.Context, empresaID string, params types.PaginationParams, filters types.FilterParams) ([]*entities.DispositivoEntity, int64, error) {
+	filter := filters.BuildMongoFilter()
+	
+	if empresaID != "" {
+		empresaObjectID, err := primitive.ObjectIDFromHex(empresaID)
+		if err == nil {
+			filter["empresaId"] = empresaObjectID
+		}
+	}
+
+	total, err := r.collection.CountDocuments(ctx, filter)
+	if err != nil {
+		return []*entities.DispositivoEntity{}, 0, err
+	}
+
+	opts := options.Find()
+	opts.SetSkip(int64(params.GetSkip()))
+	opts.SetLimit(int64(params.GetLimit()))
+	
+	if params.SortBy != "" {
+		sortOrder := 1
+		if params.SortDir == "desc" {
+			sortOrder = -1
+		}
+		opts.SetSort(bson.D{{Key: params.SortBy, Value: sortOrder}})
+	} else {
+		opts.SetSort(bson.D{{Key: "fechaInstalacion", Value: -1}})
+	}
+
+	cursor, err := r.collection.Find(ctx, filter, opts)
+	if err != nil {
+		return []*entities.DispositivoEntity{}, 0, err
+	}
+	defer cursor.Close(ctx)
+
+	var dispositivos []*entities.DispositivoEntity
+	if err := cursor.All(ctx, &dispositivos); err != nil {
+		return []*entities.DispositivoEntity{}, 0, err
+	}
+
+	if dispositivos == nil {
+		return []*entities.DispositivoEntity{}, total, nil
+	}
+
+	return dispositivos, total, nil
 }
 
 func (r *DispositivoRepository) FindByID(ctx context.Context, id string) (*entities.DispositivoEntity, error) {

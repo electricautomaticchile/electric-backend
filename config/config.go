@@ -63,8 +63,8 @@ func LoadConfig() *Config {
 		AWSRegion:          getEnv("AWS_REGION", "us-east-1"),
 		AWSAccessKeyID:     getEnv("AWS_ACCESS_KEY_ID", ""),
 		AWSSecretAccessKey: getEnv("AWS_SECRET_ACCESS_KEY", ""),
-		S3BucketImages:     getEnv("S3_BUCKET_IMAGES", ""),
-		S3BucketDocs:       getEnv("S3_BUCKET_DOCS", ""),
+		S3BucketImages:     getEnv("AWS_S3_IMAGES_BUCKET_NAME", ""),
+		S3BucketDocs:       getEnv("AWS_S3_BUCKET_NAME", ""),
 		
 		ResendAPIKey: getEnv("RESEND_API_KEY", ""),
 		EmailFrom:    getEnv("EMAIL_FROM", "noreply@electricautomaticchile.com"),

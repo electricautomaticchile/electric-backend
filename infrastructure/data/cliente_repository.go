@@ -11,6 +11,7 @@ import (
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
 type ClienteRepository struct {
@@ -160,6 +161,58 @@ func (r *ClienteRepository) FindAll(ctx context.Context, empresaID string) ([]*m
 	}
 
 	return clientes, nil
+}
+
+func (r *ClienteRepository) FindAllPaginated(ctx context.Context, empresaID string, params types.PaginationParams, filters types.FilterParams) ([]*models.ClienteModel, int64, error) {
+	filter := filters.BuildMongoFilter()
+	
+	if empresaID != "" {
+		empresaObjectID, err := primitive.ObjectIDFromHex(empresaID)
+		if err == nil {
+			filter["empresaId"] = empresaObjectID
+		}
+	}
+
+	total, err := r.collection.CountDocuments(ctx, filter)
+	if err != nil {
+		return []*models.ClienteModel{}, 0, err
+	}
+
+	opts := options.Find()
+	opts.SetSkip(int64(params.GetSkip()))
+	opts.SetLimit(int64(params.GetLimit()))
+	
+	if params.SortBy != "" {
+		sortOrder := 1
+		if params.SortDir == "desc" {
+			sortOrder = -1
+		}
+		opts.SetSort(bson.D{{Key: params.SortBy, Value: sortOrder}})
+	} else {
+		opts.SetSort(bson.D{{Key: "fechaCreacion", Value: -1}})
+	}
+
+	cursor, err := r.collection.Find(ctx, filter, opts)
+	if err != nil {
+		return []*models.ClienteModel{}, 0, err
+	}
+	defer cursor.Close(ctx)
+
+	var entities []*entities.ClienteEntity
+	if err := cursor.All(ctx, &entities); err != nil {
+		return []*models.ClienteModel{}, 0, err
+	}
+
+	if entities == nil {
+		return []*models.ClienteModel{}, total, nil
+	}
+
+	clientes := make([]*models.ClienteModel, len(entities))
+	for i, entity := range entities {
+		clientes[i] = r.entityToModel(entity)
+	}
+
+	return clientes, total, nil
 }
 
 func (r *ClienteRepository) FindByID(ctx context.Context, id string) (*models.ClienteModel, error) {

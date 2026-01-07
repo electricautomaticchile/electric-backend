@@ -30,6 +30,10 @@ func (s *ClienteService) ObtenerTodos(ctx context.Context, empresaID string) ([]
 	return s.clienteRepo.FindAll(ctx, empresaID)
 }
 
+func (s *ClienteService) ObtenerTodosPaginado(ctx context.Context, empresaID string, params types.PaginationParams, filters types.FilterParams) ([]*models.ClienteModel, int64, error) {
+	return s.clienteRepo.FindAllPaginated(ctx, empresaID, params, filters)
+}
+
 func (s *ClienteService) ObtenerPorID(ctx context.Context, id string) (*models.ClienteModel, error) {
 	return s.clienteRepo.FindByID(ctx, id)
 }

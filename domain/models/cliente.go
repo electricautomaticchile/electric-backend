@@ -9,10 +9,14 @@ type ClienteModel struct {
 	Telefono          string     `json:"telefono,omitempty"`
 	Direccion         string     `json:"direccion,omitempty"`
 	Ciudad            string     `json:"ciudad,omitempty"`
+	Comuna            string     `json:"comuna,omitempty"`
 	Latitud           float64    `json:"latitud,omitempty"`
 	Longitud          float64    `json:"longitud,omitempty"`
 	Rut               string     `json:"rut,omitempty"`
+	ImagenPerfil      string     `json:"imagenPerfil,omitempty"`
 	TipoCliente       string     `json:"tipoCliente,omitempty"`
+	TipoTarifa        string     `json:"tipoTarifa,omitempty"`
+	TarifaID          string     `json:"tarifaId,omitempty"`
 	Empresa           string     `json:"empresa,omitempty"`
 	NumeroCliente     string     `json:"numeroCliente,omitempty"`
 	Activo            bool       `json:"activo"`
