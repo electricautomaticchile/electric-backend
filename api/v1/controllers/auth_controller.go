@@ -25,6 +25,7 @@ func (ctrl *AuthController) SetupRoutes(router *gin.RouterGroup) {
 	auth := router.Group("/auth")
 	{
 		auth.POST("/login", ctrl.Login)
+		auth.POST("/login/empresa", ctrl.LoginEmpresa)
 		auth.POST("/registro-empresa", ctrl.RegistroEmpresa)
 		auth.POST("/solicitar-recuperacion", ctrl.SolicitarRecuperacion)
 		auth.POST("/restablecer-password", ctrl.RestablecerPassword)
@@ -209,5 +210,39 @@ func (ctrl *AuthController) RegistroEmpresa(gctx *gin.Context) {
 			"passwordTemporal": empresa.Password,
 		},
 		Message: "Empresa registrada correctamente. Guarda tu número de cliente y contraseña temporal",
+	})
+}
+
+func (ctrl *AuthController) LoginEmpresa(gctx *gin.Context) {
+	var r recipe.LoginEmpresaRecipe
+	if err := gctx.ShouldBindJSON(&r); err != nil {
+		gctx.Error(types.ThrowRecipe("Datos inválidos", ""))
+		return
+	}
+
+	result, err := ctrl.authFacade.LoginEmpresa(gctx.Request.Context(), &r)
+	if err != nil {
+		gctx.Error(err)
+		return
+	}
+
+	gctx.SetCookie(
+		"auth_token",
+		result.Token,
+		86400,
+		"/",
+		"",
+		false,
+		true,
+	)
+
+	gctx.JSON(http.StatusOK, types.ApiResponse{
+		Success: true,
+		Data: gin.H{
+			"token":        result.Token,
+			"refreshToken": result.RefreshToken,
+			"user":         result.User,
+			"permisos":     result.Permisos,
+		},
 	})
 }

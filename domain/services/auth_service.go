@@ -23,14 +23,16 @@ import (
 type AuthService struct {
 	empresaRepo       ports.PortEmpresa
 	clienteRepo       ports.PortCliente
+	usuarioEmpresaRepo ports.PortUsuarioEmpresa
 	recoveryTokenRepo ports.PortRecoveryToken
 	emailService      *email.ResendService
 }
 
-func NewAuthService(empresaRepo ports.PortEmpresa, clienteRepo ports.PortCliente, recoveryTokenRepo ports.PortRecoveryToken, emailService *email.ResendService) *AuthService {
+func NewAuthService(empresaRepo ports.PortEmpresa, clienteRepo ports.PortCliente, usuarioEmpresaRepo ports.PortUsuarioEmpresa, recoveryTokenRepo ports.PortRecoveryToken, emailService *email.ResendService) *AuthService {
 	return &AuthService{
 		empresaRepo:       empresaRepo,
 		clienteRepo:       clienteRepo,
+		usuarioEmpresaRepo: usuarioEmpresaRepo,
 		recoveryTokenRepo: recoveryTokenRepo,
 		emailService:      emailService,
 	}
@@ -41,31 +43,6 @@ func (s *AuthService) Login(ctx context.Context, r *recipe.LoginRecipe) (*models
 
 	if numeroCliente == "" {
 		return nil, types.ThrowRecipe("Número de cliente es requerido", "numeroCliente")
-	}
-
-	empresa, err := s.empresaRepo.FindByNumeroCliente(ctx, numeroCliente)
-	if err == nil && empresa != nil {
-		if empresa.Estado != "activo" {
-			return nil, types.ThrowAuth("Empresa inactiva")
-		}
-
-		err = bcrypt.CompareHashAndPassword([]byte(empresa.Password), []byte(r.Password))
-		if err != nil {
-			return nil, types.ThrowAuth("Credenciales inválidas")
-		}
-
-		s.empresaRepo.UpdateUltimoAcceso(ctx, empresa.ID)
-
-		token, err := s.generateTokenEmpresa(empresa)
-		if err != nil {
-			return nil, err
-		}
-
-		return &models.LoginResponseModel{
-			Token:        token,
-			RefreshToken: token,
-			User:         s.empresaToCliente(empresa),
-		}, nil
 	}
 
 	cliente, err := s.clienteRepo.FindByNumeroCliente(ctx, numeroCliente)
@@ -270,6 +247,21 @@ func (s *AuthService) RegistrarEmpresa(ctx context.Context, r *recipe.RegistroEm
 		return nil, err
 	}
 
+	usuarioAdmin := &models.UsuarioEmpresaModel{
+		EmpresaID:        empresa.ID,
+		Nombre:           r.ContactoPrincipal.Nombre,
+		Email:            validation.SanitizeEmail(r.ContactoPrincipal.Correo),
+		Password:         string(hashedPassword),
+		Role:             models.RoleEmpresaAdmin,
+		Telefono:         validation.NormalizarTelefono(r.ContactoPrincipal.Telefono),
+		Cargo:            validation.SanitizeString(r.ContactoPrincipal.Cargo),
+		PasswordTemporal: true,
+	}
+
+	if err := s.usuarioEmpresaRepo.Create(ctx, usuarioAdmin); err != nil {
+		return nil, err
+	}
+
 	empresa.Password = passwordTemporal
 
 	return empresa, nil
@@ -345,6 +337,65 @@ func (s *AuthService) generateTokenCliente(cliente *models.ClienteModel) (string
 		"userRole":  cliente.Role,
 		"userType":  "cliente", // Tipo cliente
 		"empresaId": cliente.EmpresaID,
+		"exp":       time.Now().Add(24 * time.Hour).Unix(),
+	}
+
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+	return token.SignedString([]byte(config.AppConfig.JWTSecret))
+}
+
+func (s *AuthService) LoginEmpresa(ctx context.Context, r *recipe.LoginEmpresaRecipe) (*models.LoginResponseModel, error) {
+	email := validation.SanitizeEmail(r.Email)
+
+	if email == "" {
+		return nil, types.ThrowRecipe("Email es requerido", "email")
+	}
+
+	empresa, err := s.empresaRepo.FindByCorreo(ctx, email)
+	if err != nil {
+		return nil, types.ThrowAuth("Credenciales inválidas")
+	}
+
+	if empresa.Estado != "activo" {
+		return nil, types.ThrowAuth("Empresa inactiva")
+	}
+
+	err = bcrypt.CompareHashAndPassword([]byte(empresa.Password), []byte(r.Password))
+	if err != nil {
+		return nil, types.ThrowAuth("Credenciales inválidas")
+	}
+
+	s.empresaRepo.UpdateUltimoAcceso(ctx, empresa.ID)
+
+	token, err := s.generateTokenEmpresa(empresa)
+	if err != nil {
+		return nil, err
+	}
+
+	permisos := models.GetPermisosRole(empresa.Role)
+
+	return &models.LoginResponseModel{
+		Token:        token,
+		RefreshToken: token,
+		User: &models.ClienteModel{
+			ID:        empresa.ID,
+			Nombre:    empresa.NombreEmpresa,
+			Correo:    empresa.Correo,
+			Role:      empresa.Role,
+			EmpresaID: empresa.ID,
+			Activo:    empresa.Estado == "activo",
+			TipoCliente: empresa.TipoUsuario,
+		},
+		Permisos: &permisos,
+	}, nil
+}
+
+func (s *AuthService) generateTokenUsuarioEmpresa(usuario *models.UsuarioEmpresaModel) (string, error) {
+	claims := jwt.MapClaims{
+		"userId":    usuario.ID,
+		"userRole":  usuario.Role,
+		"userType":  "usuario_empresa",
+		"empresaId": usuario.EmpresaID,
 		"exp":       time.Now().Add(24 * time.Hour).Unix(),
 	}
 

@@ -1,7 +1,8 @@
 package models
 
 type LoginResponseModel struct {
-	Token        string        `json:"token"`
-	RefreshToken string        `json:"refreshToken"`
-	User         *ClienteModel `json:"user"`
+	Token        string         `json:"token"`
+	RefreshToken string         `json:"refreshToken"`
+	User         *ClienteModel  `json:"user"`
+	Permisos     *PermisosRole  `json:"permisos,omitempty"`
 }

@@ -40,3 +40,7 @@ func (f *AuthFacade) RestablecerPassword(ctx context.Context, r *recipe.Restable
 func (f *AuthFacade) RegistrarEmpresa(ctx context.Context, r *recipe.RegistroEmpresaRecipe) (*models.EmpresaModel, error) {
 	return f.authService.RegistrarEmpresa(ctx, r)
 }
+
+func (f *AuthFacade) LoginEmpresa(ctx context.Context, r *recipe.LoginEmpresaRecipe) (*models.LoginResponseModel, error) {
+	return f.authService.LoginEmpresa(ctx, r)
+}

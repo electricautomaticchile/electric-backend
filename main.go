@@ -196,7 +196,10 @@ func main() {
 	imagenPerfilService := services.NewImagenPerfilService(clienteRepo, empresaRepo, s3Service)
 	exportService := services.NewExportService(clienteRepo, dispositivoRepo, alertaRepo, boletaRepo)
 
-	authService := services.NewAuthService(empresaRepo, clienteRepo, recoveryTokenRepo, emailService)
+	usuarioEmpresaRepo := data.NewUsuarioEmpresaRepository()
+	usuarioEmpresaService := services.NewUsuarioEmpresaService(usuarioEmpresaRepo, emailService)
+
+	authService := services.NewAuthService(empresaRepo, clienteRepo, usuarioEmpresaRepo, recoveryTokenRepo, emailService)
 	clienteService := services.NewClienteService(clienteRepo, emailService)
 	empresaService := services.NewEmpresaService(empresaRepo)
 	dispositivoService := services.NewDispositivoService(dispositivoRepo, wsNotifierService)
@@ -222,6 +225,7 @@ func main() {
 
 	// Inicializar controladores
 	authController := controllers.NewAuthController(authFacade)
+	usuarioEmpresaController := controllers.NewUsuarioEmpresaController(usuarioEmpresaService)
 	clienteController := controllers.NewClienteController(clienteFacade)
 	empresaController := controllers.NewEmpresaController(empresaFacade)
 	dispositivoController := controllers.NewDispositivoController(dispositivoFacade)
@@ -252,6 +256,16 @@ func main() {
 		clienteController.SetupRoutes(api)
 		cotizacionController.SetupRoutes(api)
 		dashboardClienteController.SetupRoutes(api)
+
+		usuariosEmpresa := api.Group("/usuarios-empresa")
+		usuariosEmpresa.Use(middleware.AuthMiddleware())
+		{
+			usuariosEmpresa.GET("", usuarioEmpresaController.ObtenerTodos)
+			usuariosEmpresa.GET("/:id", usuarioEmpresaController.ObtenerPorID)
+			usuariosEmpresa.POST("", usuarioEmpresaController.Crear)
+			usuariosEmpresa.PUT("/:id", usuarioEmpresaController.Actualizar)
+			usuariosEmpresa.DELETE("/:id", usuarioEmpresaController.Eliminar)
+		}
 
 		ws := api.Group("/ws")
 		ws.Use(middleware.AuthMiddleware())
