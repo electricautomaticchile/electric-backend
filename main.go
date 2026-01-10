@@ -7,6 +7,7 @@ import (
 	"electric-backend/domain/facades"
 	"electric-backend/domain/services"
 	"electric-backend/infrastructure/arduino"
+	"electric-backend/infrastructure/aws"
 	"electric-backend/infrastructure/data"
 	"electric-backend/infrastructure/email"
 	"electric-backend/infrastructure/middleware"
@@ -188,6 +189,11 @@ func main() {
 	emailService := email.NewResendService()
 	dashboardService := services.NewDashboardService(clienteRepo, dispositivoRepo, alertaRepo, ticketRepo)
 	
+	s3Service, err := aws.NewS3Service(config.AppConfig)
+	if err != nil {
+		log.Printf("⚠️ S3 no disponible: %v. Las imágenes de perfil no funcionarán.", err)
+	}
+	imagenPerfilService := services.NewImagenPerfilService(clienteRepo, empresaRepo, s3Service)
 	exportService := services.NewExportService(clienteRepo, dispositivoRepo, alertaRepo, boletaRepo)
 
 	usuarioEmpresaRepo := data.NewUsuarioEmpresaRepository()
@@ -238,6 +244,7 @@ func main() {
 	mapaController := controllers.NewMapaController(dispositivoService, clienteService)
 	antifraudeController := controllers.NewAntifraudeController(antifraudeService)
 	dashboardController := controllers.NewDashboardController(dashboardService)
+	imagenPerfilController := controllers.NewImagenPerfilController(imagenPerfilService)
 	exportController := controllers.NewExportController(exportService)
 	auditLogController := controllers.NewAuditLogController(auditLogService)
 	tarifaController := controllers.NewTarifaController(tarifaService)
@@ -290,6 +297,7 @@ func main() {
 		setupMapaRoutes(api, mapaController)
 		setupAntifraudeRoutes(api, antifraudeController)
 		setupDashboardRoutes(api, dashboardController)
+		setupImagenPerfilRoutes(api, imagenPerfilController)
 		setupExportRoutes(api, exportController)
 		setupAuditLogRoutes(api, auditLogController)
 		setupTarifaRoutes(api, tarifaController)
@@ -471,6 +479,16 @@ func setupDashboardRoutes(router *gin.RouterGroup, ctrl *controllers.DashboardCo
 	dashboard.Use(middleware.AuthMiddleware())
 	{
 		dashboard.GET("/estadisticas", ctrl.ObtenerEstadisticas)
+	}
+}
+
+func setupImagenPerfilRoutes(router *gin.RouterGroup, ctrl *controllers.ImagenPerfilController) {
+	imagenes := router.Group("/imagenes-perfil")
+	imagenes.Use(middleware.AuthMiddleware())
+	{
+		imagenes.POST("/upload", ctrl.SubirYActualizarImagen)
+		imagenes.GET("/:tipoUsuario/:userId", ctrl.ObtenerImagenPerfil)
+		imagenes.DELETE("/:tipoUsuario/:userId", ctrl.EliminarImagenPerfil)
 	}
 }
 
