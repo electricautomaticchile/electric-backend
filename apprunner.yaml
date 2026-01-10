@@ -3,10 +3,8 @@ runtime: go1
 build:
   commands:
     build:
-      - go mod download
       - go build -o electric-backend-server main.go
 run:
-  runtime-version: 1.18.10  
   command: ./electric-backend-server
   network:
     port: 4000

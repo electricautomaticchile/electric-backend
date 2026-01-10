@@ -1,20 +1,20 @@
 module electric-backend
 
-go 1.23
+go 1.24.0
 
 require (
-	github.com/gin-contrib/cors v1.7.2
-	github.com/gin-gonic/gin v1.10.0
-	github.com/go-playground/validator/v10 v10.20.0
+	github.com/gin-contrib/cors v1.5.0
+	github.com/gin-gonic/gin v1.9.1
+	github.com/go-playground/validator/v10 v10.17.0
 	github.com/golang-jwt/jwt/v5 v5.2.1
 	github.com/gorilla/websocket v1.5.3
 	github.com/joho/godotenv v1.5.1
 	github.com/jung-kurt/gofpdf v1.16.2
 	github.com/redis/go-redis/v9 v9.5.1
 	github.com/xuri/excelize/v2 v2.8.0
-	go.bug.st/serial v1.6.4
+	go.bug.st/serial v1.6.2
 	go.mongodb.org/mongo-driver v1.15.0
-	golang.org/x/crypto v0.46.0
+	golang.org/x/crypto v0.17.0
 )
 
 require (
@@ -54,9 +54,9 @@ require (
 	github.com/xuri/nfp v0.0.2-0.20250530014748-2ddeb826f9a9 // indirect
 	github.com/youmark/pkcs8 v0.0.0-20181117223130-1be2e3e5546d // indirect
 	golang.org/x/arch v0.8.0 // indirect
-	golang.org/x/net v0.48.0 // indirect
+	golang.org/x/net v0.19.0 // indirect
 	golang.org/x/sync v0.19.0 // indirect
-	golang.org/x/sys v0.40.0 // indirect
+	golang.org/x/sys v0.15.0 // indirect
 	golang.org/x/text v0.32.0 // indirect
 	google.golang.org/protobuf v1.34.1 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
