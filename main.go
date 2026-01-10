@@ -191,9 +191,20 @@ func main() {
 	
 	s3Service, err := aws.NewS3Service(config.AppConfig)
 	if err != nil {
-		log.Printf("⚠️ S3 no disponible: %v. Las imágenes de perfil no funcionarán.", err)
+		log.Printf("⚠️ S3 no disponible: %v", err)
+		s3Service = nil
+	} else {
+		log.Printf("✅ S3 inicializado correctamente")
 	}
-	imagenPerfilService := services.NewImagenPerfilService(clienteRepo, empresaRepo, s3Service)
+	
+	var imagenPerfilService *services.ImagenPerfilService
+	if s3Service != nil {
+		imagenPerfilService = services.NewImagenPerfilService(clienteRepo, empresaRepo, s3Service)
+		log.Printf("✅ Servicio de imágenes de perfil habilitado")
+	} else {
+		log.Printf("⚠️ Servicio de imágenes de perfil deshabilitado (S3 no configurado)")
+	}
+	
 	exportService := services.NewExportService(clienteRepo, dispositivoRepo, alertaRepo, boletaRepo)
 
 	usuarioEmpresaRepo := data.NewUsuarioEmpresaRepository()
@@ -244,7 +255,6 @@ func main() {
 	mapaController := controllers.NewMapaController(dispositivoService, clienteService)
 	antifraudeController := controllers.NewAntifraudeController(antifraudeService)
 	dashboardController := controllers.NewDashboardController(dashboardService)
-	imagenPerfilController := controllers.NewImagenPerfilController(imagenPerfilService)
 	exportController := controllers.NewExportController(exportService)
 	auditLogController := controllers.NewAuditLogController(auditLogService)
 	tarifaController := controllers.NewTarifaController(tarifaService)
@@ -256,6 +266,11 @@ func main() {
 		clienteController.SetupRoutes(api)
 		cotizacionController.SetupRoutes(api)
 		dashboardClienteController.SetupRoutes(api)
+		
+		if imagenPerfilService != nil {
+			imagenPerfilController := controllers.NewImagenPerfilController(imagenPerfilService)
+			setupImagenPerfilRoutes(api, imagenPerfilController)
+		}
 
 		usuariosEmpresa := api.Group("/usuarios-empresa")
 		usuariosEmpresa.Use(middleware.AuthMiddleware())
@@ -297,7 +312,6 @@ func main() {
 		setupMapaRoutes(api, mapaController)
 		setupAntifraudeRoutes(api, antifraudeController)
 		setupDashboardRoutes(api, dashboardController)
-		setupImagenPerfilRoutes(api, imagenPerfilController)
 		setupExportRoutes(api, exportController)
 		setupAuditLogRoutes(api, auditLogController)
 		setupTarifaRoutes(api, tarifaController)
@@ -486,7 +500,7 @@ func setupImagenPerfilRoutes(router *gin.RouterGroup, ctrl *controllers.ImagenPe
 	imagenes := router.Group("/imagenes-perfil")
 	imagenes.Use(middleware.AuthMiddleware())
 	{
-		imagenes.POST("/upload", ctrl.SubirYActualizarImagen)
+		imagenes.POST("/:tipoUsuario/:userId/upload", ctrl.SubirYActualizarImagen)
 		imagenes.GET("/:tipoUsuario/:userId", ctrl.ObtenerImagenPerfil)
 		imagenes.DELETE("/:tipoUsuario/:userId", ctrl.EliminarImagenPerfil)
 	}

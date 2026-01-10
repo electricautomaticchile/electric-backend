@@ -11,10 +11,3 @@ type RegistroEmpresaRecipe struct {
 	Region        string `json:"region" binding:"required,max=50"`
 	ContactoPrincipal ContactoPrincipalRecipe `json:"contactoPrincipal" binding:"required"`
 }
-
-type ContactoPrincipalRecipe struct {
-	Nombre   string `json:"nombre" binding:"required,max=100"`
-	Cargo    string `json:"cargo" binding:"required,max=50"`
-	Telefono string `json:"telefono" binding:"required,telefono_cl"`
-	Correo   string `json:"correo" binding:"required,email,max=100"`
-}

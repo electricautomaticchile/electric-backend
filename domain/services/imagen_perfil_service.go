@@ -56,7 +56,7 @@ func (s *ImagenPerfilService) ActualizarImagenPerfil(imageURL string, tipoUsuari
 		}
 
 		cliente.ImagenPerfil = imageURL
-		if err := s.clienteRepo.Update(ctx, cliente); err != nil {
+		if err := s.clienteRepo.Update(ctx, userID, cliente); err != nil {
 			return fmt.Errorf("error actualizando cliente: %w", err)
 		}
 
@@ -66,14 +66,14 @@ func (s *ImagenPerfilService) ActualizarImagenPerfil(imageURL string, tipoUsuari
 			return fmt.Errorf("empresa no encontrada: %w", err)
 		}
 
-		if empresa.ImagenPerfil != "" && s.s3Service != nil {
-			if err := s.s3Service.EliminarImagen(empresa.ImagenPerfil); err != nil {
+		if empresa.ContactoPrincipal.ImagenPerfil != "" && s.s3Service != nil {
+			if err := s.s3Service.EliminarImagen(empresa.ContactoPrincipal.ImagenPerfil); err != nil {
 				return fmt.Errorf("error eliminando imagen anterior: %w", err)
 			}
 		}
 
-		empresa.ImagenPerfil = imageURL
-		if err := s.empresaRepo.Update(ctx, empresa); err != nil {
+		empresa.ContactoPrincipal.ImagenPerfil = imageURL
+		if err := s.empresaRepo.Update(ctx, userID, empresa); err != nil {
 			return fmt.Errorf("error actualizando empresa: %w", err)
 		}
 
@@ -100,7 +100,7 @@ func (s *ImagenPerfilService) ObtenerImagenPerfil(tipoUsuario string, userID str
 		if err != nil {
 			return "", fmt.Errorf("empresa no encontrada: %w", err)
 		}
-		return empresa.ImagenPerfil, nil
+		return empresa.ContactoPrincipal.ImagenPerfil, nil
 
 	default:
 		return "", fmt.Errorf("tipo de usuario inválido: %s", tipoUsuario)
@@ -128,15 +128,15 @@ func (s *ImagenPerfilService) EliminarImagenPerfil(tipoUsuario string, userID st
 			return err
 		}
 		cliente.ImagenPerfil = ""
-		return s.clienteRepo.Update(ctx, cliente)
+		return s.clienteRepo.Update(ctx, userID, cliente)
 
 	case "empresa":
 		empresa, err := s.empresaRepo.FindByID(ctx, userID)
 		if err != nil {
 			return err
 		}
-		empresa.ImagenPerfil = ""
-		return s.empresaRepo.Update(ctx, empresa)
+		empresa.ContactoPrincipal.ImagenPerfil = ""
+		return s.empresaRepo.Update(ctx, userID, empresa)
 
 	default:
 		return fmt.Errorf("tipo de usuario inválido: %s", tipoUsuario)

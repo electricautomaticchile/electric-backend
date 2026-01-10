@@ -33,6 +33,7 @@ func (ctrl *AuthController) SetupRoutes(router *gin.RouterGroup) {
 		auth.Use(middleware.AuthMiddleware())
 		{
 			auth.GET("/profile", ctrl.ObtenerPerfil)
+			auth.GET("/me", ctrl.ObtenerPerfil)
 			auth.POST("/cambiar-password", ctrl.CambiarPassword)
 			auth.POST("/logout", ctrl.Logout)
 		}

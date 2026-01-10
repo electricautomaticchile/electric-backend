@@ -5,10 +5,11 @@ import (
 )
 
 type ContactoPrincipalEntity struct {
-	Nombre   string `bson:"nombre" json:"nombre"`
-	Cargo    string `bson:"cargo" json:"cargo"`
-	Telefono string `bson:"telefono" json:"telefono"`
-	Correo   string `bson:"correo" json:"correo"`
+	Nombre       string `bson:"nombre" json:"nombre"`
+	Cargo        string `bson:"cargo" json:"cargo"`
+	Telefono     string `bson:"telefono" json:"telefono"`
+	Correo       string `bson:"correo" json:"correo"`
+	ImagenPerfil string `bson:"imagenPerfil,omitempty" json:"imagenPerfil,omitempty"`
 }
 
 type EmpresaEntity struct {
@@ -26,7 +27,6 @@ type EmpresaEntity struct {
 	Ciudad             string                  `bson:"ciudad,omitempty" json:"ciudad,omitempty"`
 	Region             string                  `bson:"region,omitempty" json:"region,omitempty"`
 	RUT                string                  `bson:"rut,omitempty" json:"rut,omitempty"`
-	ImagenPerfil       string                  `bson:"imagenPerfil,omitempty" json:"imagenPerfil,omitempty"`
 	ContactoPrincipal  ContactoPrincipalEntity `bson:"contactoPrincipal,omitempty" json:"contactoPrincipal,omitempty"`
 	Role               string                  `bson:"role" json:"role"`
 	TipoUsuario        string                  `bson:"tipoUsuario" json:"tipoUsuario"`

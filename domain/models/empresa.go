@@ -3,10 +3,11 @@ package models
 import "time"
 
 type ContactoPrincipal struct {
-	Nombre   string `json:"nombre" binding:"required"`
-	Cargo    string `json:"cargo" binding:"required"`
-	Telefono string `json:"telefono" binding:"required"`
-	Correo   string `json:"correo" binding:"required,email"`
+	Nombre       string `json:"nombre" binding:"required"`
+	Cargo        string `json:"cargo" binding:"required"`
+	Telefono     string `json:"telefono" binding:"required"`
+	Correo       string `json:"correo" binding:"required,email"`
+	ImagenPerfil string `json:"imagenPerfil,omitempty"`
 }
 
 type EmpresaModel struct {

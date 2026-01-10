@@ -58,11 +58,14 @@ func (s *EmpresaService) Actualizar(ctx context.Context, id string, r *recipe.Ac
 		return nil, err
 	}
 
-	if r.Nombre != "" {
-		empresa.NombreEmpresa = validation.SanitizeString(r.Nombre)
+	if r.NombreEmpresa != "" {
+		empresa.NombreEmpresa = validation.SanitizeString(r.NombreEmpresa)
 	}
-	if r.Email != "" {
-		empresa.Correo = validation.SanitizeEmail(r.Email)
+	if r.RazonSocial != "" {
+		empresa.RazonSocial = validation.SanitizeString(r.RazonSocial)
+	}
+	if r.Correo != "" {
+		empresa.Correo = validation.SanitizeEmail(r.Correo)
 	}
 	if r.Telefono != "" {
 		empresa.Telefono = validation.NormalizarTelefono(r.Telefono)
@@ -70,8 +73,28 @@ func (s *EmpresaService) Actualizar(ctx context.Context, id string, r *recipe.Ac
 	if r.Direccion != "" {
 		empresa.Direccion = validation.SanitizeString(r.Direccion)
 	}
-	if r.RUT != "" {
-		empresa.Rut = validation.NormalizarRUT(r.RUT)
+	if r.Ciudad != "" {
+		empresa.Ciudad = validation.SanitizeString(r.Ciudad)
+	}
+	if r.Region != "" {
+		empresa.Region = validation.SanitizeString(r.Region)
+	}
+	if r.Rut != "" {
+		empresa.Rut = validation.NormalizarRUT(r.Rut)
+	}
+	if r.ContactoPrincipal != nil {
+		if r.ContactoPrincipal.Nombre != "" {
+			empresa.ContactoPrincipal.Nombre = validation.SanitizeString(r.ContactoPrincipal.Nombre)
+		}
+		if r.ContactoPrincipal.Cargo != "" {
+			empresa.ContactoPrincipal.Cargo = validation.SanitizeString(r.ContactoPrincipal.Cargo)
+		}
+		if r.ContactoPrincipal.Telefono != "" {
+			empresa.ContactoPrincipal.Telefono = validation.NormalizarTelefono(r.ContactoPrincipal.Telefono)
+		}
+		if r.ContactoPrincipal.Correo != "" {
+			empresa.ContactoPrincipal.Correo = validation.SanitizeEmail(r.ContactoPrincipal.Correo)
+		}
 	}
 
 	if err := s.empresaRepo.Update(ctx, id, empresa); err != nil {

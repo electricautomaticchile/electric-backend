@@ -93,6 +93,9 @@ func (ctrl *DashboardClienteController) ObtenerResumen(gctx *gin.Context) {
 			"nombre":            cliente.Nombre,
 			"numeroCliente":     cliente.NumeroCliente,
 			"correo":            cliente.Correo,
+			"telefono":          cliente.Telefono,
+			"direccion":         cliente.Direccion,
+			"imagenPerfil":      cliente.ImagenPerfil,
 			"passwordTemporal":  cliente.PasswordTemporal != "",
 		},
 		"estadisticas": gin.H{

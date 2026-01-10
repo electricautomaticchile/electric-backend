@@ -24,19 +24,19 @@ func (ctrl *ImagenPerfilController) SubirYActualizarImagen(gctx *gin.Context) {
 
 	file, header, err := gctx.Request.FormFile("imagen")
 	if err != nil {
-		gctx.Error(types.ThrowBadRequest("No se proporcionó archivo de imagen", ""))
+		gctx.Error(types.ThrowPower("No se proporcionó archivo de imagen"))
 		return
 	}
 	defer file.Close()
 
 	imageURL, err := ctrl.service.SubirImagenPerfil(file, header, tipoUsuario, userID)
 	if err != nil {
-		gctx.Error(types.ThrowInternal("Error subiendo imagen", err.Error()))
+		gctx.Error(types.ThrowPower("Error subiendo imagen: " + err.Error()))
 		return
 	}
 
 	if err := ctrl.service.ActualizarImagenPerfil(imageURL, tipoUsuario, userID); err != nil {
-		gctx.Error(types.ThrowInternal("Error actualizando perfil", err.Error()))
+		gctx.Error(types.ThrowPower("Error actualizando perfil: " + err.Error()))
 		return
 	}
 
@@ -55,7 +55,7 @@ func (ctrl *ImagenPerfilController) ObtenerImagenPerfil(gctx *gin.Context) {
 
 	imageURL, err := ctrl.service.ObtenerImagenPerfil(tipoUsuario, userID)
 	if err != nil {
-		gctx.Error(types.ThrowNotFound("Imagen no encontrada", err.Error()))
+		gctx.Error(types.ThrowPower("Imagen no encontrada: " + err.Error()))
 		return
 	}
 
@@ -72,7 +72,7 @@ func (ctrl *ImagenPerfilController) EliminarImagenPerfil(gctx *gin.Context) {
 	userID := gctx.Param("userId")
 
 	if err := ctrl.service.EliminarImagenPerfil(tipoUsuario, userID); err != nil {
-		gctx.Error(types.ThrowInternal("Error eliminando imagen", err.Error()))
+		gctx.Error(types.ThrowPower("Error eliminando imagen: " + err.Error()))
 		return
 	}
 
