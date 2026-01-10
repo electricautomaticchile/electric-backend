@@ -52,37 +52,7 @@ func (ctrl *AuthController) Login(gctx *gin.Context) {
 		return
 	}
 
-	domain := ""
-	secure := false
-	if gctx.Request.Host != "localhost:4000" && gctx.Request.Host != "127.0.0.1:4000" {
-		domain = "api-electricautomaticchile.com"
-		secure = true
-	}
-
-	gctx.SetSameSite(http.SameSiteNoneMode)
-	gctx.SetCookie(
-		"auth_token",
-		result.Token,
-		86400,
-		"/",
-		domain,
-		secure,
-		false,
-	)
-
 	requiereCambioPassword := result.User.PasswordTemporal != ""
-	
-	if requiereCambioPassword {
-		gctx.SetCookie(
-			"requiereCambioPassword",
-			"true",
-			86400,
-			"/",
-			domain,
-			secure,
-			false,
-		)
-	}
 
 	gctx.JSON(http.StatusOK, types.ApiResponse{
 		Success: true,
@@ -233,24 +203,6 @@ func (ctrl *AuthController) LoginEmpresa(gctx *gin.Context) {
 		gctx.Error(err)
 		return
 	}
-
-	domain := ""
-	secure := false
-	if gctx.Request.Host != "localhost:4000" && gctx.Request.Host != "127.0.0.1:4000" {
-		domain = "api-electricautomaticchile.com"
-		secure = true
-	}
-
-	gctx.SetSameSite(http.SameSiteNoneMode)
-	gctx.SetCookie(
-		"auth_token",
-		result.Token,
-		86400,
-		"/",
-		domain,
-		secure,
-		false,
-	)
 
 	gctx.JSON(http.StatusOK, types.ApiResponse{
 		Success: true,
