@@ -17,16 +17,21 @@ type LecturaDispositivoModel struct {
 	Timestamp   time.Time `json:"timestamp"`
 }
 
+type ClienteBasicoModel struct {
+	ID        string `json:"id"`
+	Nombre    string `json:"nombre"`
+	Direccion string `json:"direccion"`
+}
+
 type DispositivoModel struct {
 	ID                 string                 `json:"id"`
 	Name               string                 `json:"name"`
-	Type               string                 `json:"type"` // "LED" | "Sensor" | "Relay" | "Switch" | "Meter" | "Gateway"
+	Type               string                 `json:"type"`
 	Status             bool                   `json:"status"`
 	Location           string                 `json:"location,omitempty"`
 	LastActivity       *time.Time             `json:"lastActivity,omitempty"`
 	Metadata           map[string]interface{} `json:"metadata,omitempty"`
 	
-	// Campos legacy para compatibilidad
 	NumeroDispositivo  string                      `json:"numeroDispositivo,omitempty"`
 	Nombre             string                      `json:"nombre,omitempty"`
 	Tipo               string                      `json:"tipo,omitempty"`
@@ -41,6 +46,7 @@ type DispositivoModel struct {
 	Activo             bool                        `json:"activo"`
 	FechaCreacion      time.Time                   `json:"fechaCreacion,omitempty"`
 	FechaActualizacion *time.Time                  `json:"fechaActualizacion,omitempty"`
+	Cliente            *ClienteBasicoModel         `json:"cliente,omitempty"`
 }
 
 type MeterDevice struct {

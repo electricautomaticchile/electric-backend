@@ -52,14 +52,15 @@ func (ctrl *AuthController) Login(gctx *gin.Context) {
 		return
 	}
 
+	gctx.SetSameSite(http.SameSiteLaxMode)
 	gctx.SetCookie(
 		"auth_token",
 		result.Token,
 		86400,
 		"/",
-		"",
+		"localhost",
 		false,
-		true,
+		false,
 	)
 
 	requiereCambioPassword := result.User.PasswordTemporal != ""
@@ -70,7 +71,7 @@ func (ctrl *AuthController) Login(gctx *gin.Context) {
 			"true",
 			86400,
 			"/",
-			"",
+			"localhost",
 			false,
 			false,
 		)
@@ -226,14 +227,15 @@ func (ctrl *AuthController) LoginEmpresa(gctx *gin.Context) {
 		return
 	}
 
+	gctx.SetSameSite(http.SameSiteLaxMode)
 	gctx.SetCookie(
 		"auth_token",
 		result.Token,
 		86400,
 		"/",
-		"",
+		"localhost",
 		false,
-		true,
+		false,
 	)
 
 	gctx.JSON(http.StatusOK, types.ApiResponse{

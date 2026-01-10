@@ -14,12 +14,14 @@ import (
 
 type DispositivoService struct {
 	dispositivoRepo ports.PortDispositivo
+	clienteRepo     ports.PortCliente
 	wsNotifier      *WebSocketNotifierService
 }
 
-func NewDispositivoService(dispositivoRepo ports.PortDispositivo, wsNotifier *WebSocketNotifierService) *DispositivoService {
+func NewDispositivoService(dispositivoRepo ports.PortDispositivo, clienteRepo ports.PortCliente, wsNotifier *WebSocketNotifierService) *DispositivoService {
 	return &DispositivoService{
 		dispositivoRepo: dispositivoRepo,
+		clienteRepo:     clienteRepo,
 		wsNotifier:      wsNotifier,
 	}
 }
@@ -30,12 +32,25 @@ func (s *DispositivoService) ObtenerTodos(ctx context.Context, empresaID string)
 		return []*models.DispositivoModel{}, nil
 	}
 
-	models := make([]*models.DispositivoModel, len(dispositivos))
+	modelos := make([]*models.DispositivoModel, len(dispositivos))
 	for i, dispositivo := range dispositivos {
-		models[i] = s.entityToModel(dispositivo)
+		model := s.entityToModel(dispositivo)
+		
+		if !dispositivo.ClienteID.IsZero() {
+			cliente, err := s.clienteRepo.FindByID(ctx, dispositivo.ClienteID.Hex())
+			if err == nil && cliente != nil {
+				model.Cliente = &models.ClienteBasicoModel{
+					ID:        cliente.ID,
+					Nombre:    cliente.Nombre,
+					Direccion: cliente.Direccion,
+				}
+			}
+		}
+		
+		modelos[i] = model
 	}
 
-	return models, nil
+	return modelos, nil
 }
 
 func (s *DispositivoService) ObtenerPorID(ctx context.Context, id string) (*models.DispositivoModel, error) {

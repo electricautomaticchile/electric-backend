@@ -22,12 +22,37 @@ func (ctrl *ArduinoController) GetStatus(gctx *gin.Context) {
 	connected := ctrl.bridge.IsConnected()
 	devices := ctrl.bridge.GetDevices()
 	
+	transformedDevices := make([]gin.H, 0, len(devices))
+	for _, device := range devices {
+		deviceData := gin.H{
+			"ID":        device.ID,
+			"ClienteID": device.ClienteID,
+			"EmpresaID": device.EmpresaID,
+		}
+		
+		if device.LastReading != nil {
+			deviceData["LastReading"] = gin.H{
+				"idDispositivo":   device.LastReading.DeviceID,
+				"voltaje":         device.LastReading.Voltage,
+				"corriente":       device.LastReading.Current,
+				"potenciaActiva":  device.LastReading.Power,
+				"energia":         device.LastReading.Energy,
+				"costo":           device.LastReading.Cost,
+				"servicioActivo":  device.LastReading.ServicioActivo,
+				"uptime":          device.LastReading.Uptime,
+				"marcaTiempo":     device.LastReading.Timestamp,
+			}
+		}
+		
+		transformedDevices = append(transformedDevices, deviceData)
+	}
+	
 	gctx.JSON(http.StatusOK, types.ApiResponse{
 		Success: true,
 		Data: gin.H{
 			"connected":      connected,
 			"devicesCount":   len(devices),
-			"devices":        devices,
+			"devices":        transformedDevices,
 		},
 	})
 }

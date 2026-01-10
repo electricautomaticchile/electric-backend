@@ -202,7 +202,7 @@ func main() {
 	authService := services.NewAuthService(empresaRepo, clienteRepo, usuarioEmpresaRepo, recoveryTokenRepo, emailService)
 	clienteService := services.NewClienteService(clienteRepo, emailService)
 	empresaService := services.NewEmpresaService(empresaRepo)
-	dispositivoService := services.NewDispositivoService(dispositivoRepo, wsNotifierService)
+	dispositivoService := services.NewDispositivoService(dispositivoRepo, clienteRepo, wsNotifierService)
 	notificacionService := services.NewNotificacionService(notificacionRepo, wsNotifierService)
 	alertaService := services.NewAlertaService(alertaRepo, wsNotifierService)
 	boletaService := services.NewBoletaService(boletaRepo, clienteRepo, emailService)

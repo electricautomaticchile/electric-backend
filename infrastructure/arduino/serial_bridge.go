@@ -105,7 +105,7 @@ func (sb *SerialBridge) Connect(portPath string) error {
 	mode := &serial.Mode{
 		BaudRate: sb.config.BaudRate,
 		DataBits: sb.config.DataBits,
-		StopBits: serial.StopBits(sb.config.StopBits),
+		StopBits: serial.OneStopBit,
 		Parity:   serial.NoParity,
 	}
 	
@@ -173,8 +173,8 @@ func (sb *SerialBridge) processLine(line string) {
 		return
 	}
 	
-	log.Printf("📊 Datos de %s: Power=%.2fW Energy=%.3fkWh LED1=%v LED2=%v", 
-		data.DeviceID, data.Power, data.Energy, data.LED1, data.LED2)
+	log.Printf("📊 Datos de %s: Power=%.2fW Energy=%.3fkWh Servicio=%v", 
+		data.DeviceID, data.Power, data.Energy, data.ServicioActivo)
 	
 	sb.devicesMu.Lock()
 	device, exists := sb.devices[data.DeviceID]
@@ -197,7 +197,39 @@ func (sb *SerialBridge) processLine(line string) {
 	
 	device.LastReading = &data
 	
+	go sb.saveReading(&data)
+	
 	sb.sendToWebSocket(&data)
+}
+
+func (sb *SerialBridge) saveReading(data *ArduinoData) {
+	collection := config.MongoDB.Collection("dispositivos")
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	
+	update := bson.M{
+		"$set": bson.M{
+			"ultimaLectura": bson.M{
+				"voltage":     data.Voltage,
+				"current":     data.Current,
+				"activePower": data.Power,
+				"energy":      data.Energy,
+				"cost":        data.Cost,
+				"timestamp":   time.Now(),
+			},
+			"estado": "activo",
+		},
+	}
+	
+	_, err := collection.UpdateOne(
+		ctx,
+		bson.M{"numeroDispositivo": data.DeviceID},
+		update,
+	)
+	
+	if err != nil {
+		log.Printf("❌ Error guardando lectura de %s: %v", data.DeviceID, err)
+	}
 }
 
 func (sb *SerialBridge) registerDevice(data *ArduinoData) {
@@ -224,34 +256,20 @@ func (sb *SerialBridge) registerDevice(data *ArduinoData) {
 		return
 	}
 	
-	clientesCollection := config.MongoDB.Collection("clientes")
-	var cliente bson.M
-	err = clientesCollection.FindOne(ctx, bson.M{"numeroCliente": data.DeviceID}).Decode(&cliente)
-	
-	if err != nil {
-		log.Printf("⚠️ No se encontró cliente con número %s", data.DeviceID)
-		return
-	}
-	
 	nuevoDispositivo := bson.M{
 		"numeroDispositivo": data.DeviceID,
 		"nombre":           fmt.Sprintf("Arduino %s", data.DeviceID),
 		"tipo":             "arduino_uno",
 		"estado":           "activo",
-		"clienteAsignado":  cliente["_id"],
-		"ubicacion":        cliente["direccion"],
+		"direccion":        "Sin asignar",
 		"configuracion": bson.M{
-			"voltajeNominal":  5,
+			"voltajeNominal":  220,
 			"corrienteMaxima": 0.5,
-			"potenciaMaxima":  2.5,
+			"potenciaMaxima":  110,
 			"tarifaKwh":       150,
 		},
 		"activo":        true,
 		"fechaCreacion": time.Now().UnixMilli(),
-	}
-	
-	if empresaID, ok := cliente["empresa"].(string); ok && empresaID != "" {
-		nuevoDispositivo["empresaAsignada"] = empresaID
 	}
 	
 	_, err = collection.InsertOne(ctx, nuevoDispositivo)
@@ -260,7 +278,7 @@ func (sb *SerialBridge) registerDevice(data *ArduinoData) {
 		return
 	}
 	
-	log.Printf("✅ Dispositivo %s registrado exitosamente", data.DeviceID)
+	log.Printf("✅ Dispositivo %s registrado exitosamente (sin asignar)", data.DeviceID)
 }
 
 func (sb *SerialBridge) sendToWebSocket(data *ArduinoData) {
@@ -273,18 +291,15 @@ func (sb *SerialBridge) sendToWebSocket(data *ArduinoData) {
 	}
 	
 	wsData := map[string]interface{}{
-		"idDispositivo":  data.DeviceID,
-		"potenciaActiva": data.Power,
-		"energia":        data.Energy,
-		"voltaje":        data.Voltage,
-		"corriente":      data.Current,
-		"costo":          data.Cost,
-		"marcaTiempo":    time.Now().Format(time.RFC3339),
-		"metadata": map[string]interface{}{
-			"led1":   data.LED1,
-			"led2":   data.LED2,
-			"uptime": data.Uptime,
-		},
+		"idDispositivo":   data.DeviceID,
+		"potenciaActiva":  data.Power,
+		"energia":         data.Energy,
+		"voltaje":         data.Voltage,
+		"corriente":       data.Current,
+		"costo":           data.Cost,
+		"marcaTiempo":     time.Now().Format(time.RFC3339),
+		"servicioActivo":  data.ServicioActivo,
+		"uptime":          data.Uptime,
 	}
 	
 	msg := websocket.Message{
