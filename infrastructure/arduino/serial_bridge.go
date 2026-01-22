@@ -29,11 +29,17 @@ type SerialBridge struct {
 	reconnectCount  int
 	lastPort        string
 	restoredDevices map[string]bool
+	aggregator      *ReadingAggregator
 	mu              sync.Mutex
 }
 
 func NewSerialBridge(hub *websocket.Hub) *SerialBridge {
 	ctx, cancel := context.WithCancel(context.Background())
+	
+	aggregator := GetAggregator()
+	if err := aggregator.Initialize(); err != nil {
+		log.Printf("⚠️ Error inicializando agregador: %v", err)
+	}
 	
 	return &SerialBridge{
 		config: SerialConfig{
@@ -51,6 +57,7 @@ func NewSerialBridge(hub *websocket.Hub) *SerialBridge {
 		hub:             hub,
 		ctx:             ctx,
 		cancel:          cancel,
+		aggregator:      aggregator,
 	}
 }
 
@@ -196,6 +203,17 @@ func (sb *SerialBridge) processLine(line string) {
 	}
 	
 	device.LastReading = &data
+	
+	sb.devicesMu.RLock()
+	clienteID := ""
+	empresaID := ""
+	if d, ok := sb.devices[data.DeviceID]; ok {
+		clienteID = d.ClienteID
+		empresaID = d.EmpresaID
+	}
+	sb.devicesMu.RUnlock()
+	
+	sb.aggregator.AddReading(&data, clienteID, empresaID)
 	
 	go sb.saveReading(&data)
 	
@@ -509,6 +527,10 @@ func (sb *SerialBridge) Disconnect() {
 	
 	sb.mu.Lock()
 	defer sb.mu.Unlock()
+	
+	if sb.aggregator != nil {
+		sb.aggregator.FlushAll()
+	}
 	
 	if sb.port != nil {
 		sb.saveAllDevicesState()

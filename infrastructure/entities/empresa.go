@@ -16,9 +16,7 @@ type EmpresaEntity struct {
 	ID                 primitive.ObjectID      `bson:"_id,omitempty" json:"id"`
 	NombreEmpresa      string                  `bson:"nombreEmpresa" json:"nombreEmpresa"`
 	RazonSocial        string                  `bson:"razonSocial,omitempty" json:"razonSocial,omitempty"`
-	Nombre             string                  `bson:"nombre,omitempty" json:"nombre,omitempty"`
 	Correo             string                  `bson:"correo" json:"correo"`
-	Email              string                  `bson:"email,omitempty" json:"email,omitempty"`
 	NumeroCliente      string                  `bson:"numeroCliente" json:"numeroCliente"`
 	Password           string                  `bson:"password" json:"-"`
 	PasswordTemporal   bool                    `bson:"passwordTemporal,omitempty" json:"passwordTemporal,omitempty"`

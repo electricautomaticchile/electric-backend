@@ -8,7 +8,6 @@ type ClienteEntity struct {
 	ID                 primitive.ObjectID `bson:"_id,omitempty" json:"id"`
 	Nombre             string             `bson:"nombre" json:"nombre"`
 	Correo             string             `bson:"correo" json:"correo"`
-	Email              string             `bson:"email,omitempty" json:"email,omitempty"`
 	NumeroCliente      string             `bson:"numeroCliente" json:"numeroCliente"`
 	Password           string             `bson:"password,omitempty" json:"-"`
 	PasswordTemporal   bool               `bson:"passwordTemporal,omitempty" json:"passwordTemporal,omitempty"`

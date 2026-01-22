@@ -53,9 +53,6 @@ func (r *ClienteRepository) entityToModel(entity *entities.ClienteEntity) *model
 	}
 
 	correo := entity.Correo
-	if correo == "" {
-		correo = entity.Email
-	}
 
 	passwordTemporal := ""
 	if entity.PasswordTemporal {
@@ -99,7 +96,6 @@ func (r *ClienteRepository) modelToEntity(model *models.ClienteModel) *entities.
 	entity := &entities.ClienteEntity{
 		Nombre:           model.Nombre,
 		Correo:           model.Correo,
-		Email:            model.Correo,
 		NumeroCliente:    model.NumeroCliente,
 		Password:         model.Password,
 		PasswordTemporal: model.PasswordTemporal != "",
@@ -252,12 +248,7 @@ func (r *ClienteRepository) FindByNumeroCliente(ctx context.Context, numeroClien
 
 func (r *ClienteRepository) FindByCorreo(ctx context.Context, correo string) (*models.ClienteModel, error) {
 	var entity entities.ClienteEntity
-	err := r.collection.FindOne(ctx, bson.M{
-		"$or": []bson.M{
-			{"correo": correo},
-			{"email": correo},
-		},
-	}).Decode(&entity)
+	err := r.collection.FindOne(ctx, bson.M{"correo": correo}).Decode(&entity)
 	if err != nil {
 		if err == mongo.ErrNoDocuments {
 			return nil, types.ThrowData("Cliente no encontrado")
