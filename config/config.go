@@ -36,6 +36,9 @@ type Config struct {
 	
 	// WebSocket
 	WebSocketAPIURL string
+	
+	// Google Gemini AI
+	GeminiAPIKey string
 }
 
 var AppConfig *Config
@@ -70,6 +73,8 @@ func LoadConfig() *Config {
 		EmailFrom:    getEnv("EMAIL_FROM", "noreply@electricautomaticchile.com"),
 		
 		WebSocketAPIURL: getEnv("WEBSOCKET_API_URL", "http://localhost:5000"),
+		
+		GeminiAPIKey: getEnv("GEMINI_API_KEY", ""),
 	}
 
 	return AppConfig

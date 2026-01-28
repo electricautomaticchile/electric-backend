@@ -149,34 +149,35 @@ func (ctrl *ClienteController) Crear(gctx *gin.Context) {
 		return
 	}
 
-	if err := validation.ValidateRUT(r.RUT); err != nil {
+	if r.Rut != "" {
+		if !validation.ValidarRUT(r.Rut) {
+			gctx.Error(types.ThrowRecipe("RUT inválido", ""))
+			return
+		}
+	}
+
+	if err := validation.ValidateEmail(r.Correo); err != nil {
 		gctx.Error(types.ThrowRecipe(err.Error(), ""))
 		return
 	}
 
-	if err := validation.ValidateEmail(r.Email); err != nil {
-		gctx.Error(types.ThrowRecipe(err.Error(), ""))
-		return
+	if r.Direccion != "" {
+		if err := validation.ValidateDireccion(r.Direccion); err != nil {
+			gctx.Error(types.ThrowRecipe(err.Error(), ""))
+			return
+		}
 	}
 
-	if err := validation.ValidateDireccion(r.Direccion); err != nil {
-		gctx.Error(types.ThrowRecipe(err.Error(), ""))
-		return
-	}
-
-	if err := validation.ValidateComuna(r.Comuna); err != nil {
-		gctx.Error(types.ThrowRecipe(err.Error(), ""))
-		return
-	}
-
-	if err := validation.ValidateRegion(r.Region); err != nil {
-		gctx.Error(types.ThrowRecipe(err.Error(), ""))
-		return
+	if r.Ciudad != "" {
+		if err := validation.ValidateComuna(r.Ciudad); err != nil {
+			gctx.Error(types.ThrowRecipe(err.Error(), ""))
+			return
+		}
 	}
 
 	if r.Telefono != "" {
-		if err := validation.ValidateTelefono(r.Telefono); err != nil {
-			gctx.Error(types.ThrowRecipe(err.Error(), ""))
+		if !validation.ValidarTelefonoChileno(r.Telefono) {
+			gctx.Error(types.ThrowRecipe("Teléfono inválido", ""))
 			return
 		}
 	}

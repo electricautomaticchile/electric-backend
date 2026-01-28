@@ -56,7 +56,7 @@ func (ctrl *DispositivoController) ObtenerTodos(gctx *gin.Context) {
 	if skip < total {
 		paginatedDispositivos = dispositivos[skip:end]
 	} else {
-		paginatedDispositivos = []models.DispositivoModel{}
+		paginatedDispositivos = []*models.DispositivoModel{}
 	}
 
 	gctx.JSON(http.StatusOK, gin.H{

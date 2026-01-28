@@ -60,9 +60,11 @@ func (ctrl *EmpresaController) Crear(gctx *gin.Context) {
 		return
 	}
 
-	if err := validation.ValidateRUT(r.RUT); err != nil {
-		gctx.Error(types.ThrowRecipe(err.Error(), ""))
-		return
+	if r.RUT != "" {
+		if !validation.ValidarRUT(r.RUT) {
+			gctx.Error(types.ThrowRecipe("RUT inválido", ""))
+			return
+		}
 	}
 
 	if err := validation.ValidateEmail(r.Email); err != nil {
@@ -71,8 +73,8 @@ func (ctrl *EmpresaController) Crear(gctx *gin.Context) {
 	}
 
 	if r.Telefono != "" {
-		if err := validation.ValidateTelefono(r.Telefono); err != nil {
-			gctx.Error(types.ThrowRecipe(err.Error(), ""))
+		if !validation.ValidarTelefonoChileno(r.Telefono) {
+			gctx.Error(types.ThrowRecipe("Teléfono inválido", ""))
 			return
 		}
 	}

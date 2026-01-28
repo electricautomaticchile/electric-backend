@@ -50,7 +50,7 @@ func (ctrl *TicketController) ObtenerTodos(gctx *gin.Context) {
 	if skip < total {
 		paginatedTickets = tickets[skip:end]
 	} else {
-		paginatedTickets = []models.TicketModel{}
+		paginatedTickets = []*models.TicketModel{}
 	}
 
 	gctx.JSON(http.StatusOK, gin.H{

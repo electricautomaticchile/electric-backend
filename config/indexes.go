@@ -267,13 +267,13 @@ func CreateIndexes(db *mongo.Database) error {
 		
 		_, err := collection.Indexes().CreateMany(ctx, idx.indexes)
 		if err != nil {
-			logger.Error("Error creando índices para " + idx.collection + ": " + err.Error())
+			logger.Error().Str("collection", idx.collection).Err(err).Msg("Error creando índices")
 			return err
 		}
 		
-		logger.Info("Índices creados para colección: " + idx.collection)
+		logger.Info().Str("collection", idx.collection).Msg("Índices creados para colección")
 	}
 
-	logger.Info("Todos los índices de MongoDB creados exitosamente")
+	logger.Info().Msg("Todos los índices de MongoDB creados exitosamente")
 	return nil
 }

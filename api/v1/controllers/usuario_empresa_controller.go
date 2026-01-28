@@ -62,17 +62,17 @@ func (ctrl *UsuarioEmpresaController) ObtenerTodos(gctx *gin.Context) {
 	if skip < total {
 		paginatedUsuarios = usuarios[skip:end]
 	} else {
-		paginatedUsuarios = []models.UsuarioEmpresaModel{}
+		paginatedUsuarios = []*models.UsuarioEmpresaModel{}
 	}
 
-	gctx.JSON(http.StatusOK, types.ApiResponse{
-		Success: true,
-		Data:    paginatedUsuarios,
-		Pagination: &types.PaginationResponse{
-			Page:       page,
-			Limit:      limit,
-			Total:      total,
-			TotalPages: (total + limit - 1) / limit,
+	gctx.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"data":    paginatedUsuarios,
+		"pagination": gin.H{
+			"page":       page,
+			"limit":      limit,
+			"total":      total,
+			"totalPages": (total + limit - 1) / limit,
 		},
 	})
 }

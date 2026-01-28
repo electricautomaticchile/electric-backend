@@ -56,7 +56,7 @@ func main() {
 	}
 	defer config.DisconnectDatabase()
 
-	if err := config.CreateIndexes(config.DB); err != nil {
+	if err := config.CreateIndexes(config.MongoDB); err != nil {
 		log.Printf("⚠️ Error creando índices: %v", err)
 	}
 
@@ -240,7 +240,8 @@ func main() {
 	dispositivoFacade := facades.NewDispositivoFacade(dispositivoService)
 	cotizacionFacade := facades.NewCotizacionFacade(cotizacionService)
 
-	// Inicializar controladores
+	iaService := services.NewIAService()
+
 	authController := controllers.NewAuthController(authFacade)
 	usuarioEmpresaController := controllers.NewUsuarioEmpresaController(usuarioEmpresaService)
 	clienteController := controllers.NewClienteController(clienteFacade)
@@ -265,6 +266,7 @@ func main() {
 	auditLogController := controllers.NewAuditLogController(auditLogService)
 	tarifaController := controllers.NewTarifaController(tarifaService)
 	consumoController := controllers.NewConsumoController(consumoService)
+	iaController := controllers.NewIAController(iaService)
 
 	api := router.Group("/api")
 	{
@@ -272,6 +274,7 @@ func main() {
 		clienteController.SetupRoutes(api)
 		cotizacionController.SetupRoutes(api)
 		dashboardClienteController.SetupRoutes(api)
+		iaController.SetupRoutes(api)
 		
 		if imagenPerfilService != nil {
 			imagenPerfilController := controllers.NewImagenPerfilController(imagenPerfilService)

@@ -50,7 +50,7 @@ func (ctrl *AlertaController) ObtenerTodas(gctx *gin.Context) {
 	if skip < total {
 		paginatedAlertas = alertas[skip:end]
 	} else {
-		paginatedAlertas = []models.AlertaModel{}
+		paginatedAlertas = []*models.AlertaModel{}
 	}
 
 	gctx.JSON(http.StatusOK, gin.H{
@@ -94,7 +94,7 @@ func (ctrl *AlertaController) ObtenerActivas(gctx *gin.Context) {
 	if skip < total {
 		paginatedAlertas = alertas[skip:end]
 	} else {
-		paginatedAlertas = []models.AlertaModel{}
+		paginatedAlertas = []*models.AlertaModel{}
 	}
 
 	gctx.JSON(http.StatusOK, gin.H{
