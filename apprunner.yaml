@@ -1,5 +1,6 @@
 version: 1.0
-runtime: go123
+runtime: go1
+runtime-version: 1.25.0
 build:
   commands:
     build:
