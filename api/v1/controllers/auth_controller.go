@@ -24,11 +24,13 @@ func NewAuthController(authFacade *facades.AuthFacade) *AuthController {
 func (ctrl *AuthController) SetupRoutes(router *gin.RouterGroup) {
 	auth := router.Group("/auth")
 	{
+		auth.GET("/csrf-token", ctrl.GetCSRFToken)
 		auth.POST("/login", ctrl.Login)
 		auth.POST("/login/empresa", ctrl.LoginEmpresa)
 		auth.POST("/registro-empresa", ctrl.RegistroEmpresa)
 		auth.POST("/solicitar-recuperacion", ctrl.SolicitarRecuperacion)
 		auth.POST("/restablecer-password", ctrl.RestablecerPassword)
+		auth.POST("/refresh", ctrl.RefreshToken)
 
 		auth.Use(middleware.AuthMiddleware())
 		{
@@ -67,11 +69,14 @@ func (ctrl *AuthController) Login(gctx *gin.Context) {
 }
 
 func (ctrl *AuthController) Logout(gctx *gin.Context) {
-	// Eliminar cookie
+	userID := gctx.Request.Context().Value(types.ContextKeyUserID).(string)
+	
+	ctrl.authFacade.RevokeAllRefreshTokens(gctx.Request.Context(), userID)
+	
 	gctx.SetCookie(
 		"auth_token",
 		"",
-		-1,     // maxAge negativo elimina la cookie
+		-1,
 		"/",
 		"",
 		false,
@@ -81,6 +86,59 @@ func (ctrl *AuthController) Logout(gctx *gin.Context) {
 	gctx.JSON(http.StatusOK, types.ApiResponse{
 		Success: true,
 		Message: "Sesión cerrada correctamente",
+	})
+}
+
+func (ctrl *AuthController) GetCSRFToken(gctx *gin.Context) {
+	sessionID := gctx.GetString("session_id")
+	if sessionID == "" {
+		userID, exists := gctx.Get("userID")
+		if exists {
+			sessionID = userID.(string)
+		} else {
+			sessionID = gctx.ClientIP()
+		}
+	}
+
+	token, err := middleware.GenerateCSRFTokenForSession(sessionID)
+	if err != nil {
+		gctx.JSON(http.StatusInternalServerError, types.ApiResponse{
+			Success: false,
+			Message: "Error generando token CSRF",
+		})
+		return
+	}
+
+	gctx.JSON(http.StatusOK, types.ApiResponse{
+		Success: true,
+		Data: gin.H{
+			"token": token,
+		},
+	})
+}
+
+func (ctrl *AuthController) RefreshToken(gctx *gin.Context) {
+	var r struct {
+		RefreshToken string `json:"refreshToken" binding:"required"`
+	}
+	
+	if err := gctx.ShouldBindJSON(&r); err != nil {
+		gctx.Error(types.ThrowRecipe("Token requerido", "refreshToken"))
+		return
+	}
+
+	result, err := ctrl.authFacade.RefreshToken(gctx.Request.Context(), r.RefreshToken)
+	if err != nil {
+		gctx.Error(err)
+		return
+	}
+
+	gctx.JSON(http.StatusOK, types.ApiResponse{
+		Success: true,
+		Data: gin.H{
+			"token":        result.Token,
+			"refreshToken": result.RefreshToken,
+		},
 	})
 }
 

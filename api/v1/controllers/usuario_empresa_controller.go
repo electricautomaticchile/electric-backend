@@ -2,9 +2,11 @@ package controllers
 
 import (
 	"electric-backend/api/v1/recipe"
+	"electric-backend/domain/models"
 	"electric-backend/domain/services"
 	"electric-backend/types"
 	"net/http"
+	"strconv"
 
 	"github.com/gin-gonic/gin"
 )
@@ -29,6 +31,18 @@ func (ctrl *UsuarioEmpresaController) ObtenerTodos(gctx *gin.Context) {
 		return
 	}
 
+	page, _ := strconv.Atoi(gctx.DefaultQuery("page", "1"))
+	limit, _ := strconv.Atoi(gctx.DefaultQuery("limit", "50"))
+	
+	if page < 1 {
+		page = 1
+	}
+	if limit < 1 || limit > 100 {
+		limit = 50
+	}
+	
+	skip := (page - 1) * limit
+
 	usuarios, err := ctrl.usuarioService.ObtenerTodos(gctx.Request.Context(), empresaID.(string))
 	if err != nil {
 		gctx.JSON(http.StatusInternalServerError, types.ApiResponse{
@@ -37,10 +51,29 @@ func (ctrl *UsuarioEmpresaController) ObtenerTodos(gctx *gin.Context) {
 		})
 		return
 	}
+	
+	total := len(usuarios)
+	end := skip + limit
+	if end > total {
+		end = total
+	}
+	
+	paginatedUsuarios := usuarios
+	if skip < total {
+		paginatedUsuarios = usuarios[skip:end]
+	} else {
+		paginatedUsuarios = []models.UsuarioEmpresaModel{}
+	}
 
 	gctx.JSON(http.StatusOK, types.ApiResponse{
 		Success: true,
-		Data:    usuarios,
+		Data:    paginatedUsuarios,
+		Pagination: &types.PaginationResponse{
+			Page:       page,
+			Limit:      limit,
+			Total:      total,
+			TotalPages: (total + limit - 1) / limit,
+		},
 	})
 }
 

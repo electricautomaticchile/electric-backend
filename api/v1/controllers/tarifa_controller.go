@@ -5,6 +5,7 @@ import (
 	"electric-backend/domain/services"
 	"electric-backend/types"
 	"net/http"
+	"strconv"
 
 	"github.com/gin-gonic/gin"
 )
@@ -38,15 +39,46 @@ func (c *TarifaController) Crear(gctx *gin.Context) {
 }
 
 func (c *TarifaController) ObtenerTodas(gctx *gin.Context) {
+	page, _ := strconv.Atoi(gctx.DefaultQuery("page", "1"))
+	limit, _ := strconv.Atoi(gctx.DefaultQuery("limit", "50"))
+	
+	if page < 1 {
+		page = 1
+	}
+	if limit < 1 || limit > 100 {
+		limit = 50
+	}
+	
+	skip := (page - 1) * limit
+	
 	tarifas, err := c.tarifaService.ObtenerTodasTarifas(gctx.Request.Context())
 	if err != nil {
 		gctx.Error(err)
 		return
 	}
+	
+	total := len(tarifas)
+	end := skip + limit
+	if end > total {
+		end = total
+	}
+	
+	paginatedTarifas := tarifas
+	if skip < total {
+		paginatedTarifas = tarifas[skip:end]
+	} else {
+		paginatedTarifas = []models.TarifaModel{}
+	}
 
 	gctx.JSON(http.StatusOK, types.ApiResponse{
 		Success: true,
-		Data:    tarifas,
+		Data:    paginatedTarifas,
+		Pagination: &types.PaginationResponse{
+			Page:       page,
+			Limit:      limit,
+			Total:      total,
+			TotalPages: (total + limit - 1) / limit,
+		},
 	})
 }
 

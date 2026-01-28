@@ -44,3 +44,11 @@ func (f *AuthFacade) RegistrarEmpresa(ctx context.Context, r *recipe.RegistroEmp
 func (f *AuthFacade) LoginEmpresa(ctx context.Context, r *recipe.LoginEmpresaRecipe) (*models.LoginResponseModel, error) {
 	return f.authService.LoginEmpresa(ctx, r)
 }
+
+func (f *AuthFacade) RefreshToken(ctx context.Context, refreshToken string) (*models.LoginResponseModel, error) {
+	return f.authService.RefreshToken(ctx, refreshToken)
+}
+
+func (f *AuthFacade) RevokeAllRefreshTokens(ctx context.Context, userID string) error {
+	return f.authService.RevokeAllRefreshTokens(ctx, userID)
+}

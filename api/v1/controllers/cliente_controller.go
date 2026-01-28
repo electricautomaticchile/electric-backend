@@ -4,6 +4,7 @@ import (
 	"electric-backend/api/v1/recipe"
 	"electric-backend/domain/facades"
 	"electric-backend/infrastructure/middleware"
+	"electric-backend/infrastructure/validation"
 	"electric-backend/types"
 	"net/http"
 	"strconv"
@@ -141,6 +142,43 @@ func (ctrl *ClienteController) Crear(gctx *gin.Context) {
 	if err := gctx.ShouldBindJSON(&r); err != nil {
 		gctx.Error(types.ThrowRecipe("Datos inválidos", ""))
 		return
+	}
+
+	if err := validation.ValidateNombre(r.Nombre); err != nil {
+		gctx.Error(types.ThrowRecipe(err.Error(), ""))
+		return
+	}
+
+	if err := validation.ValidateRUT(r.RUT); err != nil {
+		gctx.Error(types.ThrowRecipe(err.Error(), ""))
+		return
+	}
+
+	if err := validation.ValidateEmail(r.Email); err != nil {
+		gctx.Error(types.ThrowRecipe(err.Error(), ""))
+		return
+	}
+
+	if err := validation.ValidateDireccion(r.Direccion); err != nil {
+		gctx.Error(types.ThrowRecipe(err.Error(), ""))
+		return
+	}
+
+	if err := validation.ValidateComuna(r.Comuna); err != nil {
+		gctx.Error(types.ThrowRecipe(err.Error(), ""))
+		return
+	}
+
+	if err := validation.ValidateRegion(r.Region); err != nil {
+		gctx.Error(types.ThrowRecipe(err.Error(), ""))
+		return
+	}
+
+	if r.Telefono != "" {
+		if err := validation.ValidateTelefono(r.Telefono); err != nil {
+			gctx.Error(types.ThrowRecipe(err.Error(), ""))
+			return
+		}
 	}
 
 	cliente, err := ctrl.clienteFacade.Crear(gctx.Request.Context(), &r)

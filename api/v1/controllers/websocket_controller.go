@@ -29,12 +29,25 @@ func NewWebSocketController(hub *websocket.Hub) *WebSocketController {
 }
 
 func (ctrl *WebSocketController) HandleWebSocket(gctx *gin.Context) {
+	token := gctx.Query("token")
+	if token == "" {
+		tokenCookie, err := gctx.Cookie("auth_token")
+		if err == nil {
+			token = tokenCookie
+		}
+	}
+
+	if token == "" {
+		gctx.JSON(http.StatusUnauthorized, gin.H{"error": "Token requerido"})
+		return
+	}
+
 	userID := gctx.Request.Context().Value(types.ContextKeyUserID)
 	userType := gctx.Request.Context().Value(types.ContextKeyUserType)
 	empresaID := gctx.Request.Context().Value(types.ContextKeyEmpresaID)
 
 	if userID == nil || userType == nil {
-		gctx.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
+		gctx.JSON(http.StatusUnauthorized, gin.H{"error": "No autorizado"})
 		return
 	}
 

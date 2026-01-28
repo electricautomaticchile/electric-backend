@@ -7,6 +7,7 @@ import (
 	"electric-backend/config"
 	"electric-backend/domain/models"
 	"electric-backend/domain/ports"
+	"electric-backend/infrastructure/data"
 	"electric-backend/infrastructure/email"
 	"electric-backend/infrastructure/entities"
 	"electric-backend/infrastructure/validation"
@@ -21,20 +22,22 @@ import (
 )
 
 type AuthService struct {
-	empresaRepo       ports.PortEmpresa
-	clienteRepo       ports.PortCliente
+	empresaRepo        ports.PortEmpresa
+	clienteRepo        ports.PortCliente
 	usuarioEmpresaRepo ports.PortUsuarioEmpresa
-	recoveryTokenRepo ports.PortRecoveryToken
-	emailService      *email.ResendService
+	recoveryTokenRepo  ports.PortRecoveryToken
+	refreshTokenRepo   *data.RefreshTokenRepository
+	emailService       *email.ResendService
 }
 
-func NewAuthService(empresaRepo ports.PortEmpresa, clienteRepo ports.PortCliente, usuarioEmpresaRepo ports.PortUsuarioEmpresa, recoveryTokenRepo ports.PortRecoveryToken, emailService *email.ResendService) *AuthService {
+func NewAuthService(empresaRepo ports.PortEmpresa, clienteRepo ports.PortCliente, usuarioEmpresaRepo ports.PortUsuarioEmpresa, recoveryTokenRepo ports.PortRecoveryToken, refreshTokenRepo *data.RefreshTokenRepository, emailService *email.ResendService) *AuthService {
 	return &AuthService{
-		empresaRepo:       empresaRepo,
-		clienteRepo:       clienteRepo,
+		empresaRepo:        empresaRepo,
+		clienteRepo:        clienteRepo,
 		usuarioEmpresaRepo: usuarioEmpresaRepo,
-		recoveryTokenRepo: recoveryTokenRepo,
-		emailService:      emailService,
+		recoveryTokenRepo:  recoveryTokenRepo,
+		refreshTokenRepo:   refreshTokenRepo,
+		emailService:       emailService,
 	}
 }
 
@@ -70,9 +73,14 @@ func (s *AuthService) Login(ctx context.Context, r *recipe.LoginRecipe) (*models
 		return nil, err
 	}
 
+	refreshToken, err := s.refreshTokenRepo.Create(ctx, cliente.ID, "cliente")
+	if err != nil {
+		return nil, err
+	}
+
 	return &models.LoginResponseModel{
 		Token:        token,
-		RefreshToken: token,
+		RefreshToken: refreshToken,
 		User:         cliente,
 	}, nil
 }
@@ -372,11 +380,16 @@ func (s *AuthService) LoginEmpresa(ctx context.Context, r *recipe.LoginEmpresaRe
 		return nil, err
 	}
 
+	refreshToken, err := s.refreshTokenRepo.Create(ctx, empresa.ID, "empresa")
+	if err != nil {
+		return nil, err
+	}
+
 	permisos := models.GetPermisosRole(empresa.Role)
 
 	return &models.LoginResponseModel{
 		Token:        token,
-		RefreshToken: token,
+		RefreshToken: refreshToken,
 		User: &models.ClienteModel{
 			ID:        empresa.ID,
 			Nombre:    empresa.NombreEmpresa,
@@ -401,4 +414,68 @@ func (s *AuthService) generateTokenUsuarioEmpresa(usuario *models.UsuarioEmpresa
 
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 	return token.SignedString([]byte(config.AppConfig.JWTSecret))
+}
+
+func (s *AuthService) RefreshToken(ctx context.Context, refreshToken string) (*models.LoginResponseModel, error) {
+	tokenEntity, err := s.refreshTokenRepo.Validate(ctx, refreshToken)
+	if err != nil {
+		return nil, types.ThrowAuth("Token inválido o expirado")
+	}
+
+	userID := tokenEntity.UserID.Hex()
+	userType := tokenEntity.UserType
+
+	var token string
+	var user *models.ClienteModel
+	var permisos *models.PermisosRole
+
+	if userType == "cliente" {
+		cliente, err := s.clienteRepo.FindByID(ctx, userID)
+		if err != nil {
+			return nil, types.ThrowAuth("Usuario no encontrado")
+		}
+		if !cliente.Activo {
+			return nil, types.ThrowAuth("Usuario inactivo")
+		}
+		token, err = s.generateTokenCliente(cliente)
+		if err != nil {
+			return nil, err
+		}
+		user = cliente
+	} else if userType == "empresa" {
+		empresa, err := s.empresaRepo.FindByID(ctx, userID)
+		if err != nil {
+			return nil, types.ThrowAuth("Usuario no encontrado")
+		}
+		if empresa.Estado != "activo" {
+			return nil, types.ThrowAuth("Empresa inactiva")
+		}
+		token, err = s.generateTokenEmpresa(empresa)
+		if err != nil {
+			return nil, err
+		}
+		user = s.empresaToCliente(empresa)
+		p := models.GetPermisosRole(empresa.Role)
+		permisos = &p
+	} else {
+		return nil, types.ThrowAuth("Tipo de usuario inválido")
+	}
+
+	newRefreshToken, err := s.refreshTokenRepo.Create(ctx, userID, userType)
+	if err != nil {
+		return nil, err
+	}
+
+	s.refreshTokenRepo.Revoke(ctx, refreshToken)
+
+	return &models.LoginResponseModel{
+		Token:        token,
+		RefreshToken: newRefreshToken,
+		User:         user,
+		Permisos:     permisos,
+	}, nil
+}
+
+func (s *AuthService) RevokeAllRefreshTokens(ctx context.Context, userID string) error {
+	return s.refreshTokenRepo.RevokeAllByUser(ctx, userID)
 }

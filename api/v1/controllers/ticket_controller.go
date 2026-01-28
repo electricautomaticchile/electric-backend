@@ -2,9 +2,11 @@ package controllers
 
 import (
 	"electric-backend/api/v1/recipe"
+	"electric-backend/domain/models"
 	"electric-backend/domain/services"
 	"electric-backend/types"
 	"net/http"
+	"strconv"
 
 	"github.com/gin-gonic/gin"
 )
@@ -20,15 +22,46 @@ func NewTicketController(ticketService *services.TicketService) *TicketControlle
 }
 
 func (ctrl *TicketController) ObtenerTodos(gctx *gin.Context) {
+	page, _ := strconv.Atoi(gctx.DefaultQuery("page", "1"))
+	limit, _ := strconv.Atoi(gctx.DefaultQuery("limit", "50"))
+	
+	if page < 1 {
+		page = 1
+	}
+	if limit < 1 || limit > 100 {
+		limit = 50
+	}
+	
+	skip := (page - 1) * limit
+	
 	tickets, err := ctrl.ticketService.ObtenerTodos(gctx.Request.Context())
 	if err != nil {
 		gctx.Error(err)
 		return
 	}
+	
+	total := len(tickets)
+	end := skip + limit
+	if end > total {
+		end = total
+	}
+	
+	paginatedTickets := tickets
+	if skip < total {
+		paginatedTickets = tickets[skip:end]
+	} else {
+		paginatedTickets = []models.TicketModel{}
+	}
 
 	gctx.JSON(http.StatusOK, gin.H{
 		"success": true,
-		"data":    tickets,
+		"data":    paginatedTickets,
+		"pagination": gin.H{
+			"page":       page,
+			"limit":      limit,
+			"total":      total,
+			"totalPages": (total + limit - 1) / limit,
+		},
 	})
 }
 

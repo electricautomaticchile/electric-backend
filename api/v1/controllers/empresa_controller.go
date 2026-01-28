@@ -3,6 +3,7 @@ package controllers
 import (
 	"electric-backend/api/v1/recipe"
 	"electric-backend/domain/facades"
+	"electric-backend/infrastructure/validation"
 	"electric-backend/types"
 	"net/http"
 
@@ -52,6 +53,28 @@ func (ctrl *EmpresaController) Crear(gctx *gin.Context) {
 	if err := gctx.ShouldBindJSON(&r); err != nil {
 		gctx.Error(types.ThrowRecipe("Datos inválidos", ""))
 		return
+	}
+
+	if err := validation.ValidateNombre(r.Nombre); err != nil {
+		gctx.Error(types.ThrowRecipe(err.Error(), ""))
+		return
+	}
+
+	if err := validation.ValidateRUT(r.RUT); err != nil {
+		gctx.Error(types.ThrowRecipe(err.Error(), ""))
+		return
+	}
+
+	if err := validation.ValidateEmail(r.Email); err != nil {
+		gctx.Error(types.ThrowRecipe(err.Error(), ""))
+		return
+	}
+
+	if r.Telefono != "" {
+		if err := validation.ValidateTelefono(r.Telefono); err != nil {
+			gctx.Error(types.ThrowRecipe(err.Error(), ""))
+			return
+		}
 	}
 
 	empresa, err := ctrl.empresaFacade.Crear(gctx.Request.Context(), &r)

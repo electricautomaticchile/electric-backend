@@ -56,6 +56,10 @@ func main() {
 	}
 	defer config.DisconnectDatabase()
 
+	if err := config.CreateIndexes(config.DB); err != nil {
+		log.Printf("⚠️ Error creando índices: %v", err)
+	}
+
 	if err := config.ConnectRedis(
 		config.AppConfig.RedisHost,
 		config.AppConfig.RedisPort,
@@ -71,6 +75,7 @@ func main() {
 
 	router := gin.Default()
 
+	router.Use(middleware.CompressionMiddleware())
 	router.Use(middleware.CORSMiddleware())
 	router.Use(middleware.AuditMiddleware(auditLogService))
 	router.Use(middleware.ErrorHandler())
@@ -210,7 +215,8 @@ func main() {
 	usuarioEmpresaRepo := data.NewUsuarioEmpresaRepository()
 	usuarioEmpresaService := services.NewUsuarioEmpresaService(usuarioEmpresaRepo, emailService)
 
-	authService := services.NewAuthService(empresaRepo, clienteRepo, usuarioEmpresaRepo, recoveryTokenRepo, emailService)
+	refreshTokenRepo := data.NewRefreshTokenRepository()
+	authService := services.NewAuthService(empresaRepo, clienteRepo, usuarioEmpresaRepo, recoveryTokenRepo, refreshTokenRepo, emailService)
 	clienteService := services.NewClienteService(clienteRepo, emailService)
 	empresaService := services.NewEmpresaService(empresaRepo)
 	dispositivoService := services.NewDispositivoService(dispositivoRepo, clienteRepo, wsNotifierService)
