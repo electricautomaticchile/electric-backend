@@ -2,19 +2,11 @@ package services
 
 import (
 	"context"
-	"electric-backend/config"
-	"encoding/json"
-	"fmt"
 	"math"
 	"sort"
-
-	"github.com/google/generative-ai-go/genai"
-	"google.golang.org/api/option"
 )
 
-type IAService struct {
-	geminiClient *genai.Client
-}
+type IAService struct{}
 
 func NewIAService() *IAService {
 	return &IAService{}
@@ -91,106 +83,7 @@ func (s *IAService) AnalizarConsumo(ctx context.Context, boletas interface{}) (*
 
 	horasPico := s.identificarHorasPico(horasPicoMap)
 
-	if config.AppConfig.GeminiAPIKey == "" {
-		return s.generarAnalisisLocal(consumoPromedio, variacion, horasPico), nil
-	}
-
-	resultado, err := s.analizarConGemini(ctx, consumoPromedio, variacion, horasPico, consumos)
-	if err != nil {
-		return s.generarAnalisisLocal(consumoPromedio, variacion, horasPico), nil
-	}
-
-	return resultado, nil
-}
-
-func (s *IAService) analizarConGemini(ctx context.Context, consumoPromedio, variacion float64, horasPico []int, consumos []float64) (*ResultadoAnalisis, error) {
-	client, err := genai.NewClient(ctx, option.WithAPIKey(config.AppConfig.GeminiAPIKey))
-	if err != nil {
-		return nil, err
-	}
-	defer client.Close()
-
-	model := client.GenerativeModel("gemini-1.5-flash")
-	model.SetTemperature(0.7)
-	model.SetTopP(0.95)
-	model.SetTopK(40)
-	model.SetMaxOutputTokens(2048)
-
-	prompt := fmt.Sprintf(`Eres un experto en eficiencia energética en Chile. Analiza estos datos de consumo eléctrico y genera recomendaciones específicas en español.
-
-Datos del cliente:
-- Consumo promedio mensual: %.2f kWh
-- Variación respecto al promedio: %.2f%%
-- Horas pico detectadas: %v
-- Consumos de últimos meses: %v
-
-Genera una respuesta en formato JSON con esta estructura exacta:
-{
-  "consejos": ["consejo1", "consejo2", "consejo3"],
-  "ahorroEstimado": 50.5,
-  "horasPico": [18, 19, 20, 21],
-  "recomendaciones": [
-    {
-      "titulo": "Título de la recomendación",
-      "descripcion": "Descripción detallada",
-      "impacto": "alto"
-    }
-  ]
-}
-
-Reglas:
-- Genera 3-5 consejos específicos y accionables
-- El ahorro estimado debe ser en kWh/mes
-- Las recomendaciones deben tener impacto: "alto", "medio" o "bajo"
-- Considera el contexto chileno (tarifas, clima, horarios)
-- Sé específico con números y porcentajes
-- Responde SOLO con el JSON, sin texto adicional`, 
-		consumoPromedio, variacion, horasPico, consumos)
-
-	resp, err := model.GenerateContent(ctx, genai.Text(prompt))
-	if err != nil {
-		return nil, err
-	}
-
-	if len(resp.Candidates) == 0 || len(resp.Candidates[0].Content.Parts) == 0 {
-		return nil, fmt.Errorf("respuesta vacía de Gemini")
-	}
-
-	responseText := fmt.Sprintf("%v", resp.Candidates[0].Content.Parts[0])
-	
-	responseText = cleanJSONResponse(responseText)
-
-	var resultado ResultadoAnalisis
-	if err := json.Unmarshal([]byte(responseText), &resultado); err != nil {
-		return nil, fmt.Errorf("error parseando respuesta de Gemini: %w", err)
-	}
-
-	if len(resultado.HorasPico) == 0 {
-		resultado.HorasPico = horasPico
-	}
-
-	return &resultado, nil
-}
-
-func cleanJSONResponse(text string) string {
-	start := 0
-	end := len(text)
-	
-	for i := 0; i < len(text); i++ {
-		if text[i] == '{' {
-			start = i
-			break
-		}
-	}
-	
-	for i := len(text) - 1; i >= 0; i-- {
-		if text[i] == '}' {
-			end = i + 1
-			break
-		}
-	}
-	
-	return text[start:end]
+	return s.generarAnalisisLocal(consumoPromedio, variacion, horasPico), nil
 }
 
 func (s *IAService) identificarHorasPico(horasPicoMap map[int]float64) []int {
