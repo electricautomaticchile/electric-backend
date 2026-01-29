@@ -1,11 +1,12 @@
 version: 1.0
 runtime: go1
-runtime-version: 1.25.0
+
 build:
   commands:
     build:
       - go build -o electric-backend-server main.go
 run:
+  runtime-version: 1.24.0
   command: ./electric-backend-server
   network:
     port: 4000
