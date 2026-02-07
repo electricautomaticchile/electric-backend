@@ -16,24 +16,6 @@ func NewWebSocketNotifierService(hub *websocket.Hub) *WebSocketNotifierService {
 	}
 }
 
-func (s *WebSocketNotifierService) NotificarNuevaAlerta(alerta *entities.AlertaEntity) {
-	msg := websocket.Message{
-		Type:      websocket.MessageTypeAlert,
-		Timestamp: time.Now(),
-		EmpresaID: alerta.EmpresaID.Hex(),
-		Data: map[string]interface{}{
-			"id":          alerta.ID.Hex(),
-			"tipo":        alerta.Tipo,
-			"mensaje":     alerta.Mensaje,
-			"severidad":   alerta.Severidad,
-			"dispositivo": alerta.DispositivoID.Hex(),
-			"resuelta":    alerta.Resuelta,
-		},
-	}
-
-	s.hub.BroadcastToEmpresa(alerta.EmpresaID.Hex(), msg)
-}
-
 func (s *WebSocketNotifierService) NotificarNuevaNotificacion(notificacion *entities.NotificacionEntity) {
 	msg := websocket.Message{
 		Type:      websocket.MessageTypeNotification,
@@ -49,6 +31,23 @@ func (s *WebSocketNotifierService) NotificarNuevaNotificacion(notificacion *enti
 	}
 
 	s.hub.BroadcastToCliente(notificacion.DestinatarioID.Hex(), msg)
+	
+	if notificacion.Tipo == "alerta" {
+		alertMsg := websocket.Message{
+			Type:      websocket.MessageTypeAlert,
+			Timestamp: time.Now(),
+			EmpresaID: notificacion.DestinatarioID.Hex(),
+			Data: map[string]interface{}{
+				"id":          notificacion.ID.Hex(),
+				"tipo":        notificacion.Tipo,
+				"mensaje":     notificacion.Mensaje,
+				"severidad":   notificacion.Severidad,
+				"dispositivo": notificacion.DispositivoID.Hex(),
+				"resuelta":    notificacion.Resuelta,
+			},
+		}
+		s.hub.BroadcastToEmpresa(notificacion.DestinatarioID.Hex(), alertMsg)
+	}
 }
 
 func (s *WebSocketNotifierService) NotificarActualizacionDispositivo(dispositivo *entities.DispositivoEntity) {

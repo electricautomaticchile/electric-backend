@@ -11,6 +11,7 @@ import (
 	"electric-backend/infrastructure/data"
 	"electric-backend/infrastructure/email"
 	"electric-backend/infrastructure/middleware"
+	"electric-backend/infrastructure/scheduler"
 	"electric-backend/infrastructure/validation"
 	"electric-backend/infrastructure/websocket"
 	"electric-backend/types"
@@ -182,7 +183,6 @@ func main() {
 	empresaRepo := data.NewEmpresaRepository()
 	dispositivoRepo := data.NewDispositivoRepository()
 	notificacionRepo := data.NewNotificacionRepository()
-	alertaRepo := data.NewAlertaRepository()
 	boletaRepo := data.NewBoletaRepository()
 	ticketRepo := data.NewTicketRepository()
 	configuracionRepo := data.NewConfiguracionRepository()
@@ -192,7 +192,7 @@ func main() {
 
 	wsNotifierService := services.NewWebSocketNotifierService(wsHub)
 	emailService := email.NewResendService()
-	dashboardService := services.NewDashboardService(clienteRepo, dispositivoRepo, alertaRepo, ticketRepo)
+	dashboardService := services.NewDashboardService(clienteRepo, dispositivoRepo, notificacionRepo, ticketRepo, estadisticaRepo)
 	
 	s3Service, err := aws.NewS3Service(config.AppConfig)
 	if err != nil {
@@ -210,7 +210,7 @@ func main() {
 		log.Printf("⚠️ Servicio de imágenes de perfil deshabilitado (S3 no configurado)")
 	}
 	
-	exportService := services.NewExportService(clienteRepo, dispositivoRepo, alertaRepo, boletaRepo)
+	exportService := services.NewExportService(clienteRepo, dispositivoRepo, notificacionRepo, boletaRepo)
 
 	usuarioEmpresaRepo := data.NewUsuarioEmpresaRepository()
 	usuarioEmpresaService := services.NewUsuarioEmpresaService(usuarioEmpresaRepo, emailService)
@@ -221,17 +221,22 @@ func main() {
 	empresaService := services.NewEmpresaService(empresaRepo)
 	dispositivoService := services.NewDispositivoService(dispositivoRepo, clienteRepo, wsNotifierService)
 	notificacionService := services.NewNotificacionService(notificacionRepo, wsNotifierService)
-	alertaService := services.NewAlertaService(alertaRepo, wsNotifierService)
 	boletaService := services.NewBoletaService(boletaRepo, clienteRepo, emailService)
 	ticketService := services.NewTicketService(ticketRepo, notificacionRepo, emailService, clienteRepo, empresaRepo)
 	configuracionService := services.NewConfiguracionService(configuracionRepo)
-	estadisticaService := services.NewEstadisticaService(estadisticaRepo)
 	cotizacionService := services.NewCotizacionService(cotizacionRepo)
-	alertaAutomaticaService := services.NewAlertaAutomaticaService(alertaRepo, dispositivoRepo, notificacionRepo, empresaRepo)
+	alertaAutomaticaService := services.NewMonitoreoService(notificacionRepo, dispositivoRepo, clienteRepo, empresaRepo)
 	reporteService := services.NewReporteService(clienteRepo, empresaRepo, dispositivoRepo, boletaRepo)
-	antifraudeService := services.NewAntifraudeService(dispositivoRepo, clienteRepo, alertaRepo, notificacionRepo)
+	monitoreoService := alertaAutomaticaService
 	tarifaService := services.NewTarifaService(tarifaRepo)
 	consumoService := services.NewConsumoService(clienteRepo, tarifaRepo)
+
+	notificacionSMSService := services.NewNotificacionSMSService(clienteRepo, boletaRepo, dispositivoRepo)
+	notificacionesScheduler := scheduler.NewNotificacionesScheduler(notificacionSMSService)
+	notificacionesScheduler.Iniciar()
+	log.Printf("✅ Scheduler de notificaciones SMS iniciado")
+
+	notificacionSMSController := controllers.NewNotificacionSMSController(notificacionSMSService)
 
 	// Inicializar facades
 	authFacade := facades.NewAuthFacade(authService)
@@ -248,19 +253,17 @@ func main() {
 	empresaController := controllers.NewEmpresaController(empresaFacade)
 	dispositivoController := controllers.NewDispositivoController(dispositivoFacade)
 	notificacionController := controllers.NewNotificacionController(notificacionService)
-	alertaController := controllers.NewAlertaController(alertaService)
 	boletaController := controllers.NewBoletaController(boletaService)
 	ticketController := controllers.NewTicketController(ticketService)
 	configuracionController := controllers.NewConfiguracionController(configuracionService)
-	estadisticaController := controllers.NewEstadisticaController(estadisticaService)
+	estadisticaController := controllers.NewEstadisticaController(dashboardService)
 	cotizacionController := controllers.NewCotizacionController(cotizacionFacade)
 	wsController := controllers.NewWebSocketController(wsHub)
 	arduinoController := controllers.NewArduinoController(arduinoBridge)
-	dashboardClienteController := controllers.NewDashboardClienteController(clienteFacade, dispositivoFacade, boletaService, estadisticaService)
-	alertaAutomaticaController := controllers.NewAlertaAutomaticaController(alertaAutomaticaService)
+	dashboardClienteController := controllers.NewDashboardClienteController(clienteFacade, dispositivoFacade, boletaService, dashboardService)
 	reporteController := controllers.NewReporteController(reporteService)
 	mapaController := controllers.NewMapaController(dispositivoService, clienteService)
-	antifraudeController := controllers.NewAntifraudeController(antifraudeService)
+	antifraudeController := controllers.NewAntifraudeController(monitoreoService)
 	dashboardController := controllers.NewDashboardController(dashboardService)
 	exportController := controllers.NewExportController(exportService)
 	auditLogController := controllers.NewAuditLogController(auditLogService)
@@ -311,12 +314,11 @@ func main() {
 		setupEmpresaRoutes(api, empresaController)
 		setupDispositivoRoutes(api, dispositivoController)
 		setupNotificacionRoutes(api, notificacionController)
-		setupAlertaRoutes(api, alertaController)
+		setupNotificacionSMSRoutes(api, notificacionSMSController)
 		setupBoletaRoutes(api, boletaController)
 		setupTicketRoutes(api, ticketController)
 		setupConfiguracionRoutes(api, configuracionController)
 		setupEstadisticaRoutes(api, estadisticaController)
-		setupAlertaAutomaticaRoutes(api, alertaAutomaticaController)
 		setupReporteRoutes(api, reporteController)
 		setupMapaRoutes(api, mapaController)
 		setupAntifraudeRoutes(api, antifraudeController)
@@ -362,6 +364,9 @@ func main() {
 
 	log.Println("🛑 Apagando servidor...")
 	
+	notificacionesScheduler.Detener()
+	log.Println("✅ Scheduler de notificaciones detenido")
+	
 	arduinoBridge.Disconnect()
 	log.Println("✅ Arduino desconectado")
 }
@@ -405,16 +410,12 @@ func setupNotificacionRoutes(router *gin.RouterGroup, ctrl *controllers.Notifica
 	}
 }
 
-func setupAlertaRoutes(router *gin.RouterGroup, ctrl *controllers.AlertaController) {
-	alertas := router.Group("/alertas")
-	alertas.Use(middleware.AuthMiddleware())
+func setupNotificacionSMSRoutes(router *gin.RouterGroup, ctrl *controllers.NotificacionSMSController) {
+	sms := router.Group("/notificaciones-sms")
+	sms.Use(middleware.AuthMiddleware())
 	{
-		alertas.GET("", ctrl.ObtenerTodas)
-		alertas.GET("/activas", ctrl.ObtenerActivas)
-		alertas.GET("/empresa/:empresaId", ctrl.ObtenerPorEmpresa)
-		alertas.POST("", ctrl.Crear)
-		alertas.PUT("/:id/resolver", ctrl.Resolver)
-		alertas.DELETE("/:id", ctrl.Eliminar)
+		sms.POST("/enviar-manual", ctrl.EnviarNotificacionManual)
+		sms.POST("/verificar-boletas", ctrl.VerificarBoletasImpagas)
 	}
 }
 
@@ -458,14 +459,6 @@ func setupEstadisticaRoutes(router *gin.RouterGroup, ctrl *controllers.Estadisti
 	{
 		estadisticas.GET("/cliente/:clienteId", ctrl.ObtenerConsumoCliente)
 		estadisticas.GET("/globales", ctrl.ObtenerEstadisticasGlobales)
-	}
-}
-
-func setupAlertaAutomaticaRoutes(router *gin.RouterGroup, ctrl *controllers.AlertaAutomaticaController) {
-	alertasAuto := router.Group("/alertas-automaticas")
-	alertasAuto.Use(middleware.AuthMiddleware())
-	{
-		alertasAuto.POST("/verificar/:empresaId", ctrl.VerificarManual)
 	}
 }
 

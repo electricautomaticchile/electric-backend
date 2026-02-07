@@ -33,6 +33,44 @@ func (ctrl *NotificacionController) Listar(gctx *gin.Context) {
 	})
 }
 
+func (ctrl *NotificacionController) ListarPorEmpresa(gctx *gin.Context) {
+	empresaID := gctx.Request.Context().Value(types.ContextKeyEmpresaID)
+	if empresaID == nil {
+		gctx.Error(types.ThrowPower("No tienes acceso a esta empresa"))
+		return
+	}
+
+	notificaciones, err := ctrl.notificacionService.ListarPorEmpresa(gctx.Request.Context(), empresaID.(string))
+	if err != nil {
+		gctx.Error(err)
+		return
+	}
+
+	gctx.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"data":    notificaciones,
+	})
+}
+
+func (ctrl *NotificacionController) ListarActivas(gctx *gin.Context) {
+	empresaID := gctx.Request.Context().Value(types.ContextKeyEmpresaID)
+	if empresaID == nil {
+		gctx.Error(types.ThrowPower("No tienes acceso a esta empresa"))
+		return
+	}
+
+	notificaciones, err := ctrl.notificacionService.ListarActivas(gctx.Request.Context(), empresaID.(string))
+	if err != nil {
+		gctx.Error(err)
+		return
+	}
+
+	gctx.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"data":    notificaciones,
+	})
+}
+
 func (ctrl *NotificacionController) MarcarLeida(gctx *gin.Context) {
 	id := gctx.Param("id")
 
@@ -73,9 +111,33 @@ func (ctrl *NotificacionController) Eliminar(gctx *gin.Context) {
 	}
 
 	gctx.JSON(http.StatusOK, gin.H{
-"success": true,
-"message": "Notificación eliminada",
-})
+		"success": true,
+		"message": "Notificación eliminada",
+	})
+}
+
+func (ctrl *NotificacionController) Resolver(gctx *gin.Context) {
+	id := gctx.Param("id")
+	
+	var body struct {
+		Resolucion string `json:"resolucion" binding:"required"`
+	}
+	
+	if err := gctx.ShouldBindJSON(&body); err != nil {
+		gctx.Error(types.ThrowRecipe("Datos inválidos", ""))
+		return
+	}
+
+	err := ctrl.notificacionService.Resolver(gctx.Request.Context(), id, body.Resolucion)
+	if err != nil {
+		gctx.Error(err)
+		return
+	}
+
+	gctx.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "Notificación resuelta",
+	})
 }
 
 func (ctrl *NotificacionController) ObtenerEstadisticas(gctx *gin.Context) {

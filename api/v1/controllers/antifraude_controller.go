@@ -9,12 +9,12 @@ import (
 )
 
 type AntifraudeController struct {
-	antifraudeService *services.AntifraudeService
+	monitoreoService *services.MonitoreoService
 }
 
-func NewAntifraudeController(antifraudeService *services.AntifraudeService) *AntifraudeController {
+func NewAntifraudeController(monitoreoService *services.MonitoreoService) *AntifraudeController {
 	return &AntifraudeController{
-		antifraudeService: antifraudeService,
+		monitoreoService: monitoreoService,
 	}
 }
 
@@ -25,7 +25,7 @@ func (ctrl *AntifraudeController) DetectarAnomalias(gctx *gin.Context) {
 		return
 	}
 
-	anomalias, err := ctrl.antifraudeService.DetectarAnomalias(gctx.Request.Context(), empresaID.(string))
+	anomalias, err := ctrl.monitoreoService.DetectarAnomalias(gctx.Request.Context(), empresaID.(string))
 	if err != nil {
 		gctx.Error(err)
 		return
@@ -44,7 +44,7 @@ func (ctrl *AntifraudeController) ObtenerEstadisticas(gctx *gin.Context) {
 		return
 	}
 
-	estadisticas, err := ctrl.antifraudeService.ObtenerEstadisticas(gctx.Request.Context(), empresaID.(string))
+	estadisticas, err := ctrl.monitoreoService.ObtenerEstadisticasAntifraude(gctx.Request.Context(), empresaID.(string))
 	if err != nil {
 		gctx.Error(err)
 		return

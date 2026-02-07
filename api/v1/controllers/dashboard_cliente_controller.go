@@ -15,20 +15,20 @@ type DashboardClienteController struct {
 	clienteFacade       *facades.ClienteFacade
 	dispositivoFacade   *facades.DispositivoFacade
 	boletaService       *services.BoletaService
-	estadisticaService  *services.EstadisticaService
+	dashboardService    *services.DashboardService
 }
 
 func NewDashboardClienteController(
 	clienteFacade *facades.ClienteFacade,
 	dispositivoFacade *facades.DispositivoFacade,
 	boletaService *services.BoletaService,
-	estadisticaService *services.EstadisticaService,
+	dashboardService *services.DashboardService,
 ) *DashboardClienteController {
 	return &DashboardClienteController{
 		clienteFacade:      clienteFacade,
 		dispositivoFacade:  dispositivoFacade,
 		boletaService:      boletaService,
-		estadisticaService: estadisticaService,
+		dashboardService:   dashboardService,
 	}
 }
 
@@ -70,7 +70,7 @@ func (ctrl *DashboardClienteController) ObtenerResumen(gctx *gin.Context) {
 	consumoMensual := 0.0
 	costoMensual := 0.0
 
-	estadisticas, err := ctrl.estadisticaService.ObtenerConsumoCliente(gctx.Request.Context(), userID)
+	estadisticas, err := ctrl.dashboardService.ObtenerConsumoCliente(gctx.Request.Context(), userID)
 	if err == nil && estadisticas != nil {
 		if consumo, ok := estadisticas["consumoTotal"].(float64); ok {
 			consumoMensual = consumo
@@ -131,7 +131,7 @@ func (ctrl *DashboardClienteController) ObtenerDispositivos(gctx *gin.Context) {
 func (ctrl *DashboardClienteController) ObtenerConsumo(gctx *gin.Context) {
 	userID := gctx.Request.Context().Value(types.ContextKeyUserID).(string)
 
-	consumo, err := ctrl.estadisticaService.ObtenerConsumoCliente(gctx.Request.Context(), userID)
+	consumo, err := ctrl.dashboardService.ObtenerConsumoCliente(gctx.Request.Context(), userID)
 	if err != nil {
 		gctx.Error(err)
 		return

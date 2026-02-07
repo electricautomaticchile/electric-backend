@@ -40,7 +40,7 @@ func (s *ClienteService) ObtenerPorID(ctx context.Context, id string) (*models.C
 }
 
 func (s *ClienteService) ObtenerPorNumero(ctx context.Context, numeroCliente string) (*models.ClienteModel, error) {
-	return s.clienteRepo.FindByNumero(ctx, numeroCliente)
+	return s.clienteRepo.FindByNumeroCliente(ctx, numeroCliente)
 }
 
 func (s *ClienteService) Crear(ctx context.Context, r *recipe.CrearClienteRecipe) (*models.ClienteModel, error) {

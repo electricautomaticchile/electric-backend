@@ -10,7 +10,6 @@ type PortCliente interface {
 	FindAll(ctx context.Context, empresaID string) ([]*models.ClienteModel, error)
 	FindAllPaginated(ctx context.Context, empresaID string, params types.PaginationParams, filters types.FilterParams) ([]*models.ClienteModel, int64, error)
 	FindByID(ctx context.Context, id string) (*models.ClienteModel, error)
-	FindByNumero(ctx context.Context, numeroCliente string) (*models.ClienteModel, error)
 	FindByNumeroCliente(ctx context.Context, numeroCliente string) (*models.ClienteModel, error)
 	FindByCorreo(ctx context.Context, correo string) (*models.ClienteModel, error)
 	Create(ctx context.Context, cliente *models.ClienteModel) error

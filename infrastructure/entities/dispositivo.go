@@ -25,12 +25,14 @@ type DispositivoEntity struct {
 }
 
 type LecturaDispositivo struct {
-	Voltage     float64   `bson:"voltage" json:"voltage"`
-	Current     float64   `bson:"current" json:"current"`
-	ActivePower float64   `bson:"activePower" json:"activePower"`
-	Energy      float64   `bson:"energy" json:"energy"`
-	Cost        float64   `bson:"cost" json:"cost"`
-	Timestamp   time.Time `bson:"timestamp" json:"timestamp"`
+	Voltage       float64   `bson:"voltage" json:"voltage"`
+	Current       float64   `bson:"current" json:"current"`
+	ActivePower   float64   `bson:"activePower" json:"activePower"`
+	Energy        float64   `bson:"energy" json:"energy"`
+	Cost          float64   `bson:"cost" json:"cost"`
+	ConsumoKWh    float64   `bson:"consumoKwh" json:"consumoKwh"`
+	CostoEstimado float64   `bson:"costoEstimado" json:"costoEstimado"`
+	Timestamp     time.Time `bson:"timestamp" json:"timestamp"`
 }
 
 func (DispositivoEntity) CollectionName() string {

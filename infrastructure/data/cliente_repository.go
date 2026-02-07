@@ -230,7 +230,7 @@ func (r *ClienteRepository) FindByID(ctx context.Context, id string) (*models.Cl
 	return r.entityToModel(&entity), nil
 }
 
-func (r *ClienteRepository) FindByNumero(ctx context.Context, numeroCliente string) (*models.ClienteModel, error) {
+func (r *ClienteRepository) FindByNumeroCliente(ctx context.Context, numeroCliente string) (*models.ClienteModel, error) {
 	var entity entities.ClienteEntity
 	err := r.collection.FindOne(ctx, bson.M{"numeroCliente": numeroCliente}).Decode(&entity)
 	if err != nil {
@@ -240,10 +240,6 @@ func (r *ClienteRepository) FindByNumero(ctx context.Context, numeroCliente stri
 		return nil, err
 	}
 	return r.entityToModel(&entity), nil
-}
-
-func (r *ClienteRepository) FindByNumeroCliente(ctx context.Context, numeroCliente string) (*models.ClienteModel, error) {
-	return r.FindByNumero(ctx, numeroCliente)
 }
 
 func (r *ClienteRepository) FindByCorreo(ctx context.Context, correo string) (*models.ClienteModel, error) {

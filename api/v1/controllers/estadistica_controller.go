@@ -8,19 +8,19 @@ import (
 )
 
 type EstadisticaController struct {
-	estadisticaService *services.EstadisticaService
+	dashboardService *services.DashboardService
 }
 
-func NewEstadisticaController(estadisticaService *services.EstadisticaService) *EstadisticaController {
+func NewEstadisticaController(dashboardService *services.DashboardService) *EstadisticaController {
 	return &EstadisticaController{
-		estadisticaService: estadisticaService,
+		dashboardService: dashboardService,
 	}
 }
 
 func (ctrl *EstadisticaController) ObtenerConsumoCliente(gctx *gin.Context) {
 	clienteID := gctx.Param("clienteId")
 
-	estadisticas, err := ctrl.estadisticaService.ObtenerConsumoCliente(gctx.Request.Context(), clienteID)
+	estadisticas, err := ctrl.dashboardService.ObtenerConsumoCliente(gctx.Request.Context(), clienteID)
 	if err != nil {
 		gctx.Error(err)
 		return
@@ -33,7 +33,7 @@ func (ctrl *EstadisticaController) ObtenerConsumoCliente(gctx *gin.Context) {
 }
 
 func (ctrl *EstadisticaController) ObtenerEstadisticasGlobales(gctx *gin.Context) {
-	estadisticas, err := ctrl.estadisticaService.ObtenerEstadisticasGlobales(gctx.Request.Context())
+	estadisticas, err := ctrl.dashboardService.ObtenerEstadisticasGlobales(gctx.Request.Context())
 	if err != nil {
 		gctx.Error(err)
 		return

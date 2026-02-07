@@ -29,4 +29,6 @@ type ClienteModel struct {
 	UltimoAcceso      *time.Time `json:"ultimoAcceso,omitempty"`
 	EmpresaID         string     `json:"empresaId,omitempty"`
 	UsuarioID         string     `json:"usuarioId,omitempty"`
+	NotificacionesSMS bool       `json:"notificacionesSms,omitempty"`
+	EsTerceraEdad     bool       `json:"esTerceraEdad,omitempty"`
 }

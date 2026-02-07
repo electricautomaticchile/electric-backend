@@ -37,12 +37,44 @@ func (s *NotificacionService) Listar(ctx context.Context, destinatarioID string)
 	return models, nil
 }
 
+func (s *NotificacionService) ListarPorEmpresa(ctx context.Context, empresaID string) ([]*models.NotificacionModel, error) {
+	notificaciones, err := s.notificacionRepo.FindByEmpresa(ctx, empresaID)
+	if err != nil {
+		return []*models.NotificacionModel{}, nil
+	}
+
+	models := make([]*models.NotificacionModel, len(notificaciones))
+	for i, notificacion := range notificaciones {
+		models[i] = s.entityToModel(notificacion)
+	}
+
+	return models, nil
+}
+
+func (s *NotificacionService) ListarActivas(ctx context.Context, empresaID string) ([]*models.NotificacionModel, error) {
+	notificaciones, err := s.notificacionRepo.FindActivas(ctx, empresaID)
+	if err != nil {
+		return []*models.NotificacionModel{}, nil
+	}
+
+	models := make([]*models.NotificacionModel, len(notificaciones))
+	for i, notificacion := range notificaciones {
+		models[i] = s.entityToModel(notificacion)
+	}
+
+	return models, nil
+}
+
 func (s *NotificacionService) MarcarLeida(ctx context.Context, id string) error {
 	return s.notificacionRepo.MarcarLeida(ctx, id)
 }
 
 func (s *NotificacionService) MarcarTodasLeidas(ctx context.Context, destinatarioID string) error {
 	return s.notificacionRepo.MarcarTodasLeidas(ctx, destinatarioID)
+}
+
+func (s *NotificacionService) Resolver(ctx context.Context, id string, resolucion string) error {
+	return s.notificacionRepo.Resolver(ctx, id, resolucion)
 }
 
 func (s *NotificacionService) Eliminar(ctx context.Context, id string) error {
@@ -57,6 +89,15 @@ func (s *NotificacionService) Crear(ctx context.Context, r *recipe.CrearNotifica
 		Titulo:         validation.SanitizeString(r.Titulo),
 		Mensaje:        validation.SanitizeString(r.Mensaje),
 		Tipo:           r.Tipo,
+		Severidad:      r.Severidad,
+		Importante:     r.Importante,
+		Metadatos:      r.Metadatos,
+	}
+
+	if r.DispositivoID != "" {
+		if dispositivoID, err := primitive.ObjectIDFromHex(r.DispositivoID); err == nil {
+			entity.DispositivoID = dispositivoID
+		}
 	}
 
 	if err := s.notificacionRepo.Create(ctx, entity); err != nil {
@@ -71,13 +112,25 @@ func (s *NotificacionService) Crear(ctx context.Context, r *recipe.CrearNotifica
 }
 
 func (s *NotificacionService) entityToModel(entity *entities.NotificacionEntity) *models.NotificacionModel {
-	return &models.NotificacionModel{
+	model := &models.NotificacionModel{
 		ID:             entity.ID.Hex(),
 		DestinatarioID: entity.DestinatarioID.Hex(),
 		Titulo:         entity.Titulo,
 		Mensaje:        entity.Mensaje,
 		Tipo:           entity.Tipo,
+		Severidad:      entity.Severidad,
 		Leida:          entity.Leida,
+		Resuelta:       entity.Resuelta,
+		Importante:     entity.Importante,
+		Resolucion:     entity.Resolucion,
 		FechaCreacion:  entity.FechaCreacion,
+		FechaResolucion: entity.FechaResolucion,
+		Metadatos:      entity.Metadatos,
 	}
+
+	if !entity.DispositivoID.IsZero() {
+		model.DispositivoID = entity.DispositivoID.Hex()
+	}
+
+	return model
 }

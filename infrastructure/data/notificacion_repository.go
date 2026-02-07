@@ -1,15 +1,15 @@
 package data
 
 import (
-"context"
-"electric-backend/config"
-"electric-backend/infrastructure/entities"
-"electric-backend/types"
-"time"
+	"context"
+	"electric-backend/config"
+	"electric-backend/infrastructure/entities"
+	"electric-backend/types"
+	"time"
 
-"go.mongodb.org/mongo-driver/bson"
-"go.mongodb.org/mongo-driver/bson/primitive"
-"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/bson/primitive"
+	"go.mongodb.org/mongo-driver/mongo"
 )
 
 type NotificacionRepository struct {
@@ -20,6 +20,81 @@ func NewNotificacionRepository() *NotificacionRepository {
 	return &NotificacionRepository{
 		collection: config.MongoDB.Collection(entities.NotificacionEntity{}.CollectionName()),
 	}
+}
+
+func (r *NotificacionRepository) FindByEmpresa(ctx context.Context, empresaID string) ([]*entities.NotificacionEntity, error) {
+	empresaObjectID, err := primitive.ObjectIDFromHex(empresaID)
+	if err != nil {
+		return []*entities.NotificacionEntity{}, nil
+	}
+
+	cursor, err := r.collection.Find(ctx, bson.M{"destinatarioId": empresaObjectID})
+	if err != nil {
+		return []*entities.NotificacionEntity{}, nil
+	}
+	defer cursor.Close(ctx)
+
+	var notificaciones []*entities.NotificacionEntity
+	if err := cursor.All(ctx, &notificaciones); err != nil {
+		return []*entities.NotificacionEntity{}, nil
+	}
+
+	if notificaciones == nil {
+		return []*entities.NotificacionEntity{}, nil
+	}
+
+	return notificaciones, nil
+}
+
+func (r *NotificacionRepository) FindActivas(ctx context.Context, empresaID string) ([]*entities.NotificacionEntity, error) {
+	empresaObjectID, err := primitive.ObjectIDFromHex(empresaID)
+	if err != nil {
+		return []*entities.NotificacionEntity{}, nil
+	}
+
+	cursor, err := r.collection.Find(ctx, bson.M{
+		"destinatarioId": empresaObjectID,
+		"$or": []bson.M{
+			{"resuelta": false},
+			{"resuelta": bson.M{"$exists": false}},
+		},
+	})
+	if err != nil {
+		return []*entities.NotificacionEntity{}, nil
+	}
+	defer cursor.Close(ctx)
+
+	var notificaciones []*entities.NotificacionEntity
+	if err := cursor.All(ctx, &notificaciones); err != nil {
+		return []*entities.NotificacionEntity{}, nil
+	}
+
+	if notificaciones == nil {
+		return []*entities.NotificacionEntity{}, nil
+	}
+
+	return notificaciones, nil
+}
+
+func (r *NotificacionRepository) Resolver(ctx context.Context, id string, resolucion string) error {
+	objectID, err := primitive.ObjectIDFromHex(id)
+	if err != nil {
+		return types.ThrowData("ID inválido")
+	}
+
+	now := time.Now()
+	_, err = r.collection.UpdateOne(
+		ctx,
+		bson.M{"_id": objectID},
+		bson.M{
+			"$set": bson.M{
+				"resuelta":        true,
+				"resolucion":      resolucion,
+				"fechaResolucion": now,
+			},
+		},
+	)
+	return err
 }
 
 func (r *NotificacionRepository) FindByDestinatario(ctx context.Context, destinatarioID string) ([]*entities.NotificacionEntity, error) {

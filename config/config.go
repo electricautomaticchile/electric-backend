@@ -34,6 +34,11 @@ type Config struct {
 	ResendAPIKey string
 	EmailFrom    string
 	
+	// SMS Infobip
+	InfobipAPIKey   string
+	InfobipBaseURL  string
+	SMSFromNumber   string
+	
 	// WebSocket
 	WebSocketAPIURL string
 }
@@ -68,6 +73,10 @@ func LoadConfig() *Config {
 		
 		ResendAPIKey: getEnv("RESEND_API_KEY", ""),
 		EmailFrom:    getEnv("EMAIL_FROM", "noreply@electricautomaticchile.com"),
+		
+		InfobipAPIKey:  getEnv("INFOBIP_API_KEY", ""),
+		InfobipBaseURL: getEnv("INFOBIP_BASE_URL", "https://api.infobip.com"),
+		SMSFromNumber:  getEnv("SMS_FROM_NUMBER", "ElectricCL"),
 		
 		WebSocketAPIURL: getEnv("WEBSOCKET_API_URL", "http://localhost:5000"),
 	}

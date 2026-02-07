@@ -16,3 +16,7 @@ type PortDispositivo interface {
 	CambiarEstado(ctx context.Context, id string, estado string) error
 	Delete(ctx context.Context, id string) error
 }
+
+type DispositivoRepository interface {
+	ObtenerPorCliente(ctx context.Context, clienteID string) ([]*entities.DispositivoEntity, error)
+}

@@ -230,3 +230,7 @@ func (r *DispositivoRepository) Delete(ctx context.Context, id string) error {
 	_, err = r.collection.DeleteOne(ctx, bson.M{"_id": objectID})
 	return err
 }
+
+func (r *DispositivoRepository) ObtenerPorCliente(ctx context.Context, clienteID string) ([]*entities.DispositivoEntity, error) {
+	return r.FindByCliente(ctx, clienteID)
+}

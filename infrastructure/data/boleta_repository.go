@@ -121,3 +121,37 @@ func (r *BoletaRepository) Create(ctx context.Context, boleta *entities.BoletaEn
 	boleta.ID = result.InsertedID.(primitive.ObjectID)
 	return nil
 }
+
+func (r *BoletaRepository) ObtenerPorCliente(ctx context.Context, clienteID interface{}) ([]*entities.BoletaEntity, error) {
+	var clienteObjectID primitive.ObjectID
+	var err error
+
+	switch v := clienteID.(type) {
+	case string:
+		clienteObjectID, err = primitive.ObjectIDFromHex(v)
+		if err != nil {
+			return []*entities.BoletaEntity{}, nil
+		}
+	case primitive.ObjectID:
+		clienteObjectID = v
+	default:
+		return []*entities.BoletaEntity{}, nil
+	}
+
+	cursor, err := r.collection.Find(ctx, bson.M{"clienteId": clienteObjectID})
+	if err != nil {
+		return []*entities.BoletaEntity{}, nil
+	}
+	defer cursor.Close(ctx)
+
+	var boletas []*entities.BoletaEntity
+	if err := cursor.All(ctx, &boletas); err != nil {
+		return []*entities.BoletaEntity{}, nil
+	}
+
+	if boletas == nil {
+		return []*entities.BoletaEntity{}, nil
+	}
+
+	return boletas, nil
+}

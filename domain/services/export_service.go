@@ -10,7 +10,7 @@ import (
 type ExportService struct {
 	clienteRepo     ports.PortCliente
 	dispositivoRepo ports.PortDispositivo
-	alertaRepo      ports.PortAlerta
+	notificacionRepo ports.PortNotificacion
 	boletaRepo      ports.PortBoleta
 	excelService    *export.ExcelService
 	pdfService      *export.PDFService
@@ -19,13 +19,13 @@ type ExportService struct {
 func NewExportService(
 	clienteRepo ports.PortCliente,
 	dispositivoRepo ports.PortDispositivo,
-	alertaRepo ports.PortAlerta,
+	notificacionRepo ports.PortNotificacion,
 	boletaRepo ports.PortBoleta,
 ) *ExportService {
 	return &ExportService{
 		clienteRepo:     clienteRepo,
 		dispositivoRepo: dispositivoRepo,
-		alertaRepo:      alertaRepo,
+		notificacionRepo: notificacionRepo,
 		boletaRepo:      boletaRepo,
 		excelService:    export.NewExcelService(),
 		pdfService:      export.NewPDFService(),
@@ -146,14 +146,17 @@ func (s *ExportService) ExportarDispositivosPDF(ctx context.Context, empresaID s
 }
 
 func (s *ExportService) ExportarAlertasExcel(ctx context.Context, empresaID string) ([]byte, error) {
-	alertas, err := s.alertaRepo.FindByEmpresa(ctx, empresaID)
+	alertas, err := s.notificacionRepo.FindByEmpresa(ctx, empresaID)
 	if err != nil {
 		return nil, err
 	}
 
 	data := make([]map[string]interface{}, len(alertas))
 	for i, alerta := range alertas {
-		dispositivoNombre := alerta.Dispositivo
+		dispositivoNombre := ""
+		if !alerta.DispositivoID.IsZero() {
+			dispositivoNombre = alerta.DispositivoID.Hex()
+		}
 		if dispositivoNombre == "" {
 			dispositivoNombre = "N/A"
 		}

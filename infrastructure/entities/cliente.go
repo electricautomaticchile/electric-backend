@@ -25,6 +25,8 @@ type ClienteEntity struct {
 	EmpresaID          primitive.ObjectID `bson:"empresaId,omitempty" json:"empresaId,omitempty"`
 	UsuarioID          primitive.ObjectID `bson:"usuarioId,omitempty" json:"usuarioId,omitempty"`
 	Activo             bool               `bson:"activo" json:"activo"`
+	NotificacionesSMS  bool               `bson:"notificacionesSms,omitempty" json:"notificacionesSms,omitempty"`
+	EsTerceraEdad      bool               `bson:"esTerceraEdad,omitempty" json:"esTerceraEdad,omitempty"`
 	FechaCreacion      interface{}        `bson:"fechaCreacion,omitempty" json:"fechaCreacion,omitempty"`
 	FechaActualizacion interface{}        `bson:"fechaActualizacion,omitempty" json:"fechaActualizacion,omitempty"`
 	UltimoAcceso       interface{}        `bson:"ultimoAcceso,omitempty" json:"ultimoAcceso,omitempty"`

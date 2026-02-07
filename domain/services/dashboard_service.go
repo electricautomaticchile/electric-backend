@@ -6,10 +6,11 @@ import (
 )
 
 type DashboardService struct {
-	clienteRepo     ports.PortCliente
-	dispositivoRepo ports.PortDispositivo
-	alertaRepo      ports.PortAlerta
-	ticketRepo      ports.PortTicket
+	clienteRepo      ports.PortCliente
+	dispositivoRepo  ports.PortDispositivo
+	notificacionRepo ports.PortNotificacion
+	ticketRepo       ports.PortTicket
+	estadisticaRepo  ports.PortEstadistica
 }
 
 type EstadisticasDashboard struct {
@@ -26,21 +27,23 @@ type EstadisticasDashboard struct {
 func NewDashboardService(
 	clienteRepo ports.PortCliente,
 	dispositivoRepo ports.PortDispositivo,
-	alertaRepo ports.PortAlerta,
+	notificacionRepo ports.PortNotificacion,
 	ticketRepo ports.PortTicket,
+	estadisticaRepo ports.PortEstadistica,
 ) *DashboardService {
 	return &DashboardService{
-		clienteRepo:     clienteRepo,
-		dispositivoRepo: dispositivoRepo,
-		alertaRepo:      alertaRepo,
-		ticketRepo:      ticketRepo,
+		clienteRepo:      clienteRepo,
+		dispositivoRepo:  dispositivoRepo,
+		notificacionRepo: notificacionRepo,
+		ticketRepo:       ticketRepo,
+		estadisticaRepo:  estadisticaRepo,
 	}
 }
 
 func (s *DashboardService) ObtenerEstadisticas(ctx context.Context, empresaID string) (*EstadisticasDashboard, error) {
 	clientes, _ := s.clienteRepo.FindAll(ctx, empresaID)
 	dispositivos, _ := s.dispositivoRepo.FindAll(ctx, empresaID)
-	alertas, _ := s.alertaRepo.FindActivas(ctx)
+	alertas, _ := s.notificacionRepo.FindActivas(ctx, empresaID)
 	tickets, _ := s.ticketRepo.FindByEmpresa(ctx, empresaID)
 
 	clientesActivos := 0
@@ -78,4 +81,12 @@ func (s *DashboardService) ObtenerEstadisticas(ctx context.Context, empresaID st
 		ConsumoTotal:         consumoTotal,
 		ConsumoHoy:           consumoTotal * 0.1,
 	}, nil
+}
+
+func (s *DashboardService) ObtenerConsumoCliente(ctx context.Context, clienteID string) (map[string]interface{}, error) {
+	return s.estadisticaRepo.ObtenerConsumoCliente(ctx, clienteID)
+}
+
+func (s *DashboardService) ObtenerEstadisticasGlobales(ctx context.Context) (map[string]interface{}, error) {
+	return s.estadisticaRepo.ObtenerEstadisticasGlobales(ctx)
 }
