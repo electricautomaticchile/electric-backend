@@ -74,78 +74,84 @@ func main() {
 	auditLogRepo := data.NewAuditLogRepository()
 	auditLogService := services.NewAuditLogService(auditLogRepo)
 
-	router := gin.Default()
+	router := gin.New()
+	// Logger que ignora rutas WebSocket (evita "response.Write on hijacked connection")
+	router.Use(gin.LoggerWithConfig(gin.LoggerConfig{
+		SkipPaths: []string{"/api/ws/connect"},
+	}))
+	router.Use(gin.Recovery())
 
-	router.Use(middleware.CompressionMiddleware())
 	router.Use(middleware.CORSMiddleware())
+	router.Use(middleware.CompressionMiddleware())
 	router.Use(middleware.AuditMiddleware(auditLogService))
 	router.Use(middleware.ErrorHandler())
 
 	rateLimits := map[string]int{
-		"POST:/api/auth/login":                    5,
-		"POST:/api/auth/register":                 3,
-		"POST:/api/auth/recovery":                 3,
-		"POST:/api/auth/reset-password":           3,
-		"POST:/api/auth/cambiar-password":         10,
-		"POST:/api/auth/refresh-token":            20,
-		
-		"GET:/api/clientes":                       60,
-		"POST:/api/clientes":                      20,
-		"PUT:/api/clientes/:id":                   30,
-		"DELETE:/api/clientes/:id":                10,
-		"GET:/api/clientes/:id":                   100,
-		
-		"GET:/api/dispositivos":                   120,
-		"POST:/api/dispositivos":                  20,
-		"PUT:/api/dispositivos/:id":               60,
-		"POST:/api/dispositivos/lectura":          300,
-		"POST:/api/dispositivos/control":          30,
-		
-		"GET:/api/alertas":                        100,
-		"POST:/api/alertas":                       50,
-		"PUT:/api/alertas/:id":                    40,
-		"DELETE:/api/alertas/:id":                 20,
-		
-		"GET:/api/boletas":                        60,
-		"POST:/api/boletas":                       10,
-		"GET:/api/boletas/:id":                    100,
-		
-		"GET:/api/tickets":                        60,
-		"POST:/api/tickets":                       10,
-		"POST:/api/tickets/:id/responder":         20,
-		"PUT:/api/tickets/:id":                    30,
-		
-		"GET:/api/dashboard/empresa":              120,
-		"GET:/api/dashboard/cliente":              120,
-		"GET:/api/estadisticas/*":                 100,
-		
-		"GET:/api/export/*":                       5,
-		
-		"GET:/api/mapa/dispositivos":              60,
-		"GET:/api/mapa/ubicacion/:id":             100,
-		"POST:/api/mapa/actualizar":               30,
-		
-		"GET:/api/tarifas":                        30,
-		"POST:/api/tarifas":                       5,
-		"PUT:/api/tarifas/:id":                    10,
-		
-		"POST:/api/imagenes-perfil/upload":        10,
-		"GET:/api/imagenes-perfil/:id":            100,
-		"DELETE:/api/imagenes-perfil/:id":         10,
+		"POST:/api/auth/login":            5,
+		"POST:/api/auth/register":         3,
+		"POST:/api/auth/recovery":         3,
+		"POST:/api/auth/reset-password":   3,
+		"POST:/api/auth/cambiar-password": 10,
+		"POST:/api/auth/refresh-token":    20,
+
+		"GET:/api/clientes":        60,
+		"POST:/api/clientes":       20,
+		"PUT:/api/clientes/:id":    30,
+		"DELETE:/api/clientes/:id": 10,
+		"GET:/api/clientes/:id":    100,
+
+		"GET:/api/dispositivos":          120,
+		"POST:/api/dispositivos":         20,
+		"PUT:/api/dispositivos/:id":      60,
+		"POST:/api/dispositivos/lectura": 300,
+		"POST:/api/dispositivos/control": 30,
+
+		"GET:/api/alertas":        100,
+		"POST:/api/alertas":       50,
+		"PUT:/api/alertas/:id":    40,
+		"DELETE:/api/alertas/:id": 20,
+
+		"GET:/api/boletas":     60,
+		"POST:/api/boletas":    10,
+		"GET:/api/boletas/:id": 100,
+
+		"GET:/api/tickets":                60,
+		"POST:/api/tickets":               10,
+		"POST:/api/tickets/:id/responder": 20,
+		"PUT:/api/tickets/:id":            30,
+
+		"GET:/api/dashboard/empresa": 120,
+		"GET:/api/dashboard/cliente": 120,
+		"GET:/api/estadisticas/*":    100,
+
+		"GET:/api/export/*": 5,
+
+		"GET:/api/mapa/dispositivos":  60,
+		"GET:/api/mapa/ubicacion/:id": 100,
+		"POST:/api/mapa/actualizar":   30,
+
+		"GET:/api/tarifas":     30,
+		"POST:/api/tarifas":    5,
+		"PUT:/api/tarifas/:id": 10,
+
+		"POST:/api/imagenes-perfil/upload": 10,
+		"GET:/api/imagenes-perfil/:id":     100,
+		"DELETE:/api/imagenes-perfil/:id":  10,
 	}
 
 	router.Use(middleware.EndpointRateLimitMiddleware(rateLimits))
 
 	wsHub := websocket.InitializeHub()
-	
+
 	go wsHub.Run()
-	
+
 	arduinoBridge := arduino.NewSerialBridge(wsHub)
-	
+
 	if os.Getenv("ARDUINO_ENABLED") == "true" {
 		go func() {
 			time.Sleep(2 * time.Second)
-			if err := arduinoBridge.Connect(""); err != nil {
+			port := os.Getenv("ARDUINO_PORT") // ej: COM6, /dev/ttyUSB0
+			if err := arduinoBridge.Connect(port); err != nil {
 				log.Printf("⚠️ No se pudo conectar al Arduino: %v", err)
 				log.Printf("💡 El servidor continuará sin Arduino. Para conectar: reinicia con Arduino conectado")
 			}
@@ -193,7 +199,7 @@ func main() {
 	wsNotifierService := services.NewWebSocketNotifierService(wsHub)
 	emailService := email.NewResendService()
 	dashboardService := services.NewDashboardService(clienteRepo, dispositivoRepo, notificacionRepo, ticketRepo, estadisticaRepo)
-	
+
 	s3Service, err := aws.NewS3Service(config.AppConfig)
 	if err != nil {
 		log.Printf("⚠️ S3 no disponible: %v", err)
@@ -201,7 +207,7 @@ func main() {
 	} else {
 		log.Printf("✅ S3 inicializado correctamente")
 	}
-	
+
 	var imagenPerfilService *services.ImagenPerfilService
 	if s3Service != nil {
 		imagenPerfilService = services.NewImagenPerfilService(clienteRepo, empresaRepo, s3Service)
@@ -209,7 +215,7 @@ func main() {
 	} else {
 		log.Printf("⚠️ Servicio de imágenes de perfil deshabilitado (S3 no configurado)")
 	}
-	
+
 	exportService := services.NewExportService(clienteRepo, dispositivoRepo, notificacionRepo, boletaRepo)
 
 	usuarioEmpresaRepo := data.NewUsuarioEmpresaRepository()
@@ -270,15 +276,17 @@ func main() {
 	tarifaController := controllers.NewTarifaController(tarifaService)
 	consumoController := controllers.NewConsumoController(consumoService)
 	iaController := controllers.NewIAController(iaService)
+	historialConsumoController := controllers.NewHistorialConsumoController()
 
 	api := router.Group("/api")
 	{
 		authController.SetupRoutes(api)
+		dashboardClienteController.SetupRoutes(api) // mi-dispositivo debe ir antes que /:id de clientes
 		clienteController.SetupRoutes(api)
 		cotizacionController.SetupRoutes(api)
-		dashboardClienteController.SetupRoutes(api)
+		historialConsumoController.SetupRoutes(api)
 		iaController.SetupRoutes(api)
-		
+
 		if imagenPerfilService != nil {
 			imagenPerfilController := controllers.NewImagenPerfilController(imagenPerfilService)
 			setupImagenPerfilRoutes(api, imagenPerfilController)
@@ -295,7 +303,6 @@ func main() {
 		}
 
 		ws := api.Group("/ws")
-		ws.Use(middleware.AuthMiddleware())
 		{
 			ws.GET("/connect", wsController.HandleWebSocket)
 			ws.GET("/stats", wsController.GetStats)
@@ -363,10 +370,10 @@ func main() {
 	<-quit
 
 	log.Println("🛑 Apagando servidor...")
-	
+
 	notificacionesScheduler.Detener()
 	log.Println("✅ Scheduler de notificaciones detenido")
-	
+
 	arduinoBridge.Disconnect()
 	log.Println("✅ Arduino desconectado")
 }

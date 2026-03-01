@@ -13,11 +13,11 @@ import (
 
 // JWTClaims representa los claims del JWT
 type JWTClaims struct {
-	UserID     string   `json:"userId"`
-	UserRole   string   `json:"userRole"`
-	UserType   string   `json:"userType"`
-	EmpresaID  string   `json:"empresaId,omitempty"`
-	Powers     []string `json:"powers,omitempty"`
+	UserID    string   `json:"userId"`
+	UserRole  string   `json:"userRole"`
+	UserType  string   `json:"userType"`
+	EmpresaID string   `json:"empresaId,omitempty"`
+	Powers    []string `json:"powers,omitempty"`
 	jwt.RegisteredClaims
 }
 
@@ -41,6 +41,9 @@ func AuthMiddleware() gin.HandlerFunc {
 				c.Abort()
 				return
 			}
+		} else if q := c.Query("token"); q != "" {
+			// Query param para WebSocket (no puede enviar headers)
+			tokenString = q
 		} else {
 			// Si no hay header, intentar obtener token de la cookie
 			cookie, err := c.Cookie("auth_token")

@@ -24,6 +24,12 @@ func (g *gzipWriter) WriteString(s string) (int, error) {
 
 func CompressionMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
+		// No comprimir conexiones WebSocket (se hace hijack del writer)
+		if strings.HasPrefix(c.Request.URL.Path, "/api/ws/") {
+			c.Next()
+			return
+		}
+
 		if !strings.Contains(c.GetHeader("Accept-Encoding"), "gzip") {
 			c.Next()
 			return
@@ -35,9 +41,9 @@ func CompressionMiddleware() gin.HandlerFunc {
 		}
 
 		contentType := c.GetHeader("Content-Type")
-		if strings.Contains(contentType, "image/") || 
-		   strings.Contains(contentType, "video/") ||
-		   strings.Contains(contentType, "audio/") {
+		if strings.Contains(contentType, "image/") ||
+			strings.Contains(contentType, "video/") ||
+			strings.Contains(contentType, "audio/") {
 			c.Next()
 			return
 		}

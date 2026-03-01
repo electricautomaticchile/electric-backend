@@ -1,6 +1,7 @@
 package controllers
 
 import (
+	"context"
 	"electric-backend/domain/facades"
 	"electric-backend/domain/services"
 	"electric-backend/infrastructure/middleware"
@@ -12,10 +13,10 @@ import (
 )
 
 type DashboardClienteController struct {
-	clienteFacade       *facades.ClienteFacade
-	dispositivoFacade   *facades.DispositivoFacade
-	boletaService       *services.BoletaService
-	dashboardService    *services.DashboardService
+	clienteFacade     *facades.ClienteFacade
+	dispositivoFacade *facades.DispositivoFacade
+	boletaService     *services.BoletaService
+	dashboardService  *services.DashboardService
 }
 
 func NewDashboardClienteController(
@@ -25,10 +26,10 @@ func NewDashboardClienteController(
 	dashboardService *services.DashboardService,
 ) *DashboardClienteController {
 	return &DashboardClienteController{
-		clienteFacade:      clienteFacade,
-		dispositivoFacade:  dispositivoFacade,
-		boletaService:      boletaService,
-		dashboardService:   dashboardService,
+		clienteFacade:     clienteFacade,
+		dispositivoFacade: dispositivoFacade,
+		boletaService:     boletaService,
+		dashboardService:  dashboardService,
 	}
 }
 
@@ -43,70 +44,66 @@ func (ctrl *DashboardClienteController) SetupRoutes(router *gin.RouterGroup) {
 		dashboard.GET("/boletas", ctrl.ObtenerBoletas)
 		dashboard.PUT("/perfil", ctrl.ActualizarPerfil)
 	}
+
+	clientes := router.Group("/clientes")
+	clientes.Use(middleware.AuthMiddleware())
+	{
+		clientes.GET("/mi-dispositivo", ctrl.ObtenerMiDispositivo)
+	}
 }
 
 func (ctrl *DashboardClienteController) ObtenerResumen(gctx *gin.Context) {
 	userID := gctx.Request.Context().Value(types.ContextKeyUserID).(string)
-	
-	cliente, err := ctrl.clienteFacade.ObtenerPorID(gctx.Request.Context(), userID)
+
+	// Contexto propio para no depender del timeout del request HTTP
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+
+	cliente, err := ctrl.clienteFacade.ObtenerPorID(ctx, userID)
 	if err != nil {
 		gctx.Error(err)
 		return
 	}
 
-	dispositivos, _ := ctrl.dispositivoFacade.ObtenerPorCliente(gctx.Request.Context(), userID)
-	
+	dispositivos, _ := ctrl.dispositivoFacade.ObtenerPorCliente(ctx, userID)
+
 	dispositivosActivos := 0
+	consumoActual := 0.0
+	costoActual := 0.0
+	var ultimaLectura interface{}
+
 	for _, disp := range dispositivos {
 		if disp.Estado == "activo" {
 			dispositivosActivos++
 		}
-	}
-
-	now := time.Now()
-	inicioMes := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, now.Location())
-	_ = inicioMes
-
-	consumoMensual := 0.0
-	costoMensual := 0.0
-
-	estadisticas, err := ctrl.dashboardService.ObtenerConsumoCliente(gctx.Request.Context(), userID)
-	if err == nil && estadisticas != nil {
-		if consumo, ok := estadisticas["consumoTotal"].(float64); ok {
-			consumoMensual = consumo
-		}
-		if costo, ok := estadisticas["costoTotal"].(float64); ok {
-			costoMensual = costo
+		// Datos en tiempo real desde ultimaLectura del dispositivo (actualizado por Arduino)
+		if disp.UltimaLectura != nil {
+			consumoActual += disp.UltimaLectura.Energy
+			costoActual += disp.UltimaLectura.Cost
+			ultimaLectura = disp.UltimaLectura
 		}
 	}
 
-	boletas, _ := ctrl.boletaService.ObtenerPorCliente(gctx.Request.Context(), userID)
-	boletasPendientes := 0
-	for _, boleta := range boletas {
-		if boleta.Estado == "pendiente" {
-			boletasPendientes++
-		}
-	}
-	
 	resumen := gin.H{
 		"cliente": gin.H{
-			"nombre":            cliente.Nombre,
-			"numeroCliente":     cliente.NumeroCliente,
-			"correo":            cliente.Correo,
-			"telefono":          cliente.Telefono,
-			"direccion":         cliente.Direccion,
-			"imagenPerfil":      cliente.ImagenPerfil,
-			"passwordTemporal":  cliente.PasswordTemporal != "",
+			"nombre":           cliente.Nombre,
+			"numeroCliente":    cliente.NumeroCliente,
+			"correo":           cliente.Correo,
+			"telefono":         cliente.Telefono,
+			"direccion":        cliente.Direccion,
+			"imagenPerfil":     cliente.ImagenPerfil,
+			"passwordTemporal": cliente.PasswordTemporal != "",
 		},
 		"estadisticas": gin.H{
 			"dispositivosActivos": dispositivosActivos,
 			"dispositivosTotal":   len(dispositivos),
-			"consumoMensual":      consumoMensual,
-			"costoMensual":        costoMensual,
-			"boletasPendientes":   boletasPendientes,
+			"consumoMensual":      consumoActual,
+			"costoMensual":        costoActual,
+			"ultimaLectura":       ultimaLectura,
+			"boletasPendientes":   0,
 		},
 	}
-	
+
 	gctx.JSON(http.StatusOK, types.ApiResponse{
 		Success: true,
 		Data:    resumen,
@@ -115,13 +112,13 @@ func (ctrl *DashboardClienteController) ObtenerResumen(gctx *gin.Context) {
 
 func (ctrl *DashboardClienteController) ObtenerDispositivos(gctx *gin.Context) {
 	userID := gctx.Request.Context().Value(types.ContextKeyUserID).(string)
-	
+
 	dispositivos, err := ctrl.dispositivoFacade.ObtenerPorCliente(gctx.Request.Context(), userID)
 	if err != nil {
 		gctx.Error(err)
 		return
 	}
-	
+
 	gctx.JSON(http.StatusOK, types.ApiResponse{
 		Success: true,
 		Data:    dispositivos,
@@ -136,7 +133,7 @@ func (ctrl *DashboardClienteController) ObtenerConsumo(gctx *gin.Context) {
 		gctx.Error(err)
 		return
 	}
-	
+
 	gctx.JSON(http.StatusOK, types.ApiResponse{
 		Success: true,
 		Data:    consumo,
@@ -145,13 +142,13 @@ func (ctrl *DashboardClienteController) ObtenerConsumo(gctx *gin.Context) {
 
 func (ctrl *DashboardClienteController) ObtenerPerfil(gctx *gin.Context) {
 	userID := gctx.Request.Context().Value(types.ContextKeyUserID).(string)
-	
+
 	cliente, err := ctrl.clienteFacade.ObtenerPorID(gctx.Request.Context(), userID)
 	if err != nil {
 		gctx.Error(err)
 		return
 	}
-	
+
 	gctx.JSON(http.StatusOK, types.ApiResponse{
 		Success: true,
 		Data:    cliente,
@@ -160,23 +157,49 @@ func (ctrl *DashboardClienteController) ObtenerPerfil(gctx *gin.Context) {
 
 func (ctrl *DashboardClienteController) ObtenerBoletas(gctx *gin.Context) {
 	userID := gctx.Request.Context().Value(types.ContextKeyUserID).(string)
-	
+
 	boletas, err := ctrl.boletaService.ObtenerPorCliente(gctx.Request.Context(), userID)
 	if err != nil {
 		gctx.Error(err)
 		return
 	}
-	
+
 	gctx.JSON(http.StatusOK, types.ApiResponse{
 		Success: true,
 		Data:    boletas,
 	})
 }
 
+func (ctrl *DashboardClienteController) ObtenerMiDispositivo(gctx *gin.Context) {
+	userID := gctx.Request.Context().Value(types.ContextKeyUserID).(string)
+
+	dispositivos, err := ctrl.dispositivoFacade.ObtenerPorCliente(gctx.Request.Context(), userID)
+	if err != nil || len(dispositivos) == 0 {
+		gctx.JSON(http.StatusOK, types.ApiResponse{
+			Success: true,
+			Data:    nil,
+			Message: "Sin dispositivo asignado",
+		})
+		return
+	}
+
+	d := dispositivos[0]
+	gctx.JSON(http.StatusOK, types.ApiResponse{
+		Success: true,
+		Data: gin.H{
+			"dispositivoId":     d.ID,
+			"numeroDispositivo": d.NumeroDispositivo,
+			"nombre":            d.Nombre,
+			"estado":            d.Estado,
+			"ultimaLectura":     d.UltimaLectura,
+		},
+	})
+}
+
 func (ctrl *DashboardClienteController) ActualizarPerfil(gctx *gin.Context) {
 	userID := gctx.Request.Context().Value(types.ContextKeyUserID).(string)
 	_ = userID
-	
+
 	var datos map[string]interface{}
 	if err := gctx.ShouldBindJSON(&datos); err != nil {
 		gctx.Error(types.ThrowRecipe("Datos inválidos", ""))
