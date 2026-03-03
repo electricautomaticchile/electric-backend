@@ -42,13 +42,13 @@ func NewAuthService(empresaRepo ports.PortEmpresa, clienteRepo ports.PortCliente
 }
 
 func (s *AuthService) Login(ctx context.Context, r *recipe.LoginRecipe) (*models.LoginResponseModel, error) {
-	numeroCliente := validation.SanitizeNumeroCliente(r.NumeroCliente)
+	rut := validation.NormalizarRUT(r.Rut)
 
-	if numeroCliente == "" {
-		return nil, types.ThrowRecipe("Número de cliente es requerido", "numeroCliente")
+	if rut == "" {
+		return nil, types.ThrowRecipe("RUT es requerido", "rut")
 	}
 
-	cliente, err := s.clienteRepo.FindByNumeroCliente(ctx, numeroCliente)
+	cliente, err := s.clienteRepo.FindByRut(ctx, rut)
 	if err != nil {
 		return nil, types.ThrowAuth("Credenciales inválidas")
 	}
@@ -125,7 +125,7 @@ func (s *AuthService) CambiarPassword(ctx context.Context, userID string, r *rec
 	}
 
 	esPasswordTemporal := cliente.PasswordTemporal != ""
-	
+
 	if !esPasswordTemporal && cliente.Password != "" && r.PasswordActual != "" {
 		err = bcrypt.CompareHashAndPassword([]byte(cliente.Password), []byte(r.PasswordActual))
 		if err != nil {
@@ -161,7 +161,7 @@ func (s *AuthService) SolicitarRecuperacion(ctx context.Context, r *recipe.Solic
 	}
 
 	token := s.generarTokenRecuperacion()
-	
+
 	recoveryToken := &entities.RecoveryTokenEntity{
 		UsuarioID:       usuarioID,
 		Token:           token,
@@ -213,7 +213,7 @@ func (s *AuthService) generarTokenRecuperacion() string {
 
 func (s *AuthService) RegistrarEmpresa(ctx context.Context, r *recipe.RegistroEmpresaRecipe) (*models.EmpresaModel, error) {
 	rutNormalizado := validation.NormalizarRUT(r.Rut)
-	
+
 	existente, _ := s.empresaRepo.FindByNumeroCliente(ctx, rutNormalizado)
 	if existente != nil {
 		return nil, types.ThrowData("Ya existe una empresa con este RUT")
@@ -285,7 +285,7 @@ func (s *AuthService) calcularDigitoVerificador(numero int) string {
 	suma := 0
 	multiplicador := 2
 	numeroStr := fmt.Sprintf("%d", numero)
-	
+
 	for i := len(numeroStr) - 1; i >= 0; i-- {
 		digito := int(numeroStr[i] - '0')
 		suma += digito * multiplicador
@@ -294,10 +294,10 @@ func (s *AuthService) calcularDigitoVerificador(numero int) string {
 			multiplicador = 2
 		}
 	}
-	
+
 	resto := suma % 11
 	dv := 11 - resto
-	
+
 	if dv == 11 {
 		return "0"
 	} else if dv == 10 {
@@ -391,12 +391,12 @@ func (s *AuthService) LoginEmpresa(ctx context.Context, r *recipe.LoginEmpresaRe
 		Token:        token,
 		RefreshToken: refreshToken,
 		User: &models.ClienteModel{
-			ID:        empresa.ID,
-			Nombre:    empresa.NombreEmpresa,
-			Correo:    empresa.Correo,
-			Role:      empresa.Role,
-			EmpresaID: empresa.ID,
-			Activo:    empresa.Estado == "activo",
+			ID:          empresa.ID,
+			Nombre:      empresa.NombreEmpresa,
+			Correo:      empresa.Correo,
+			Role:        empresa.Role,
+			EmpresaID:   empresa.ID,
+			Activo:      empresa.Estado == "activo",
 			TipoCliente: empresa.TipoUsuario,
 		},
 		Permisos: &permisos,

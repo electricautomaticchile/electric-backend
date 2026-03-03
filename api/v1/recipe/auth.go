@@ -1,8 +1,8 @@
 package recipe
 
 type LoginRecipe struct {
-	NumeroCliente string `json:"numeroCliente" binding:"required,numero_cliente"`
-	Password      string `json:"password" binding:"required"`
+	Rut      string `json:"rut" binding:"required,rut"`
+	Password string `json:"password" binding:"required"`
 }
 
 type CambiarPasswordRecipe struct {

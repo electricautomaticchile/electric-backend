@@ -163,7 +163,7 @@ func (r *ClienteRepository) FindAll(ctx context.Context, empresaID string) ([]*m
 
 func (r *ClienteRepository) FindAllPaginated(ctx context.Context, empresaID string, params types.PaginationParams, filters types.FilterParams) ([]*models.ClienteModel, int64, error) {
 	filter := filters.BuildMongoFilter()
-	
+
 	if empresaID != "" {
 		empresaObjectID, err := primitive.ObjectIDFromHex(empresaID)
 		if err == nil {
@@ -179,7 +179,7 @@ func (r *ClienteRepository) FindAllPaginated(ctx context.Context, empresaID stri
 	opts := options.Find()
 	opts.SetSkip(int64(params.GetSkip()))
 	opts.SetLimit(int64(params.GetLimit()))
-	
+
 	if params.SortBy != "" {
 		sortOrder := 1
 		if params.SortDir == "desc" {
@@ -233,6 +233,18 @@ func (r *ClienteRepository) FindByID(ctx context.Context, id string) (*models.Cl
 func (r *ClienteRepository) FindByNumeroCliente(ctx context.Context, numeroCliente string) (*models.ClienteModel, error) {
 	var entity entities.ClienteEntity
 	err := r.collection.FindOne(ctx, bson.M{"numeroCliente": numeroCliente}).Decode(&entity)
+	if err != nil {
+		if err == mongo.ErrNoDocuments {
+			return nil, types.ThrowData("Cliente no encontrado")
+		}
+		return nil, err
+	}
+	return r.entityToModel(&entity), nil
+}
+
+func (r *ClienteRepository) FindByRut(ctx context.Context, rut string) (*models.ClienteModel, error) {
+	var entity entities.ClienteEntity
+	err := r.collection.FindOne(ctx, bson.M{"rut": rut}).Decode(&entity)
 	if err != nil {
 		if err == mongo.ErrNoDocuments {
 			return nil, types.ThrowData("Cliente no encontrado")
