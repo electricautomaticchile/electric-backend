@@ -197,11 +197,21 @@ func (sb *SerialBridge) handlePortDisconnection(portPath string) {
 
 // tarifaChilquinta aplica la tarifa BT1 residencial de Chilquinta
 // Cargo energía: $147.5 CLP/kWh + cargo fijo mensual $1.200 + IVA 19%
-func calcularCostoChilquinta(energiaKwh float64) float64 {
-	const tarifaKwh = 239.0  // CLP/kWh neto (electricidad + coordinación/transporte)
-	const cargoFijo = 2344.0 // CLP mensual neto (admin $1.212 + servicio común $1.578)
+// calcularCostoChilquinta aplica tarifa BT-1A Chilquinta sin subsidio electrodependiente.
+// Cargo energía: $239.0 CLP/kWh neto + cargo fijo mensual $2.344 neto + IVA 19%
+// El cargo fijo se prorratea según el uptime del dispositivo en el período.
+func calcularCostoChilquinta(energiaKwh float64, uptimeSegundos int64) float64 {
+	const tarifaKwh = 239.0
+	const cargoFijoMensual = 2344.0
 	const iva = 1.19
-	return (energiaKwh*tarifaKwh + cargoFijo) * iva
+	const segundosMes = 30.0 * 24.0 * 3600.0
+
+	fraccionMes := float64(uptimeSegundos) / segundosMes
+	if fraccionMes > 1.0 {
+		fraccionMes = 1.0
+	}
+
+	return (energiaKwh*tarifaKwh + cargoFijoMensual*fraccionMes) * iva
 }
 
 func (sb *SerialBridge) processLine(line string, portPath string) {
@@ -235,7 +245,7 @@ func (sb *SerialBridge) processLine(line string, portPath string) {
 	}
 
 	// Recalcular costo con tarifa real Chilquinta BT1 (ignora el costo que calcula el Arduino)
-	data.Cost = calcularCostoChilquinta(data.Energy)
+	data.Cost = calcularCostoChilquinta(data.Energy, data.Uptime)
 
 	sb.devicesMu.Lock()
 	device, exists := sb.devices[data.DeviceID]
