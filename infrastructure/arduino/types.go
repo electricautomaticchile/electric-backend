@@ -17,19 +17,21 @@ type ArduinoData struct {
 }
 
 type DeviceInfo struct {
-	ID          string
-	ClienteID   string
-	EmpresaID   string
-	LastReading *ArduinoData
+	ID               string
+	ClienteID        string
+	EmpresaID        string
+	LastReading      *ArduinoData
+	PortPath         string
+	LastClienteCheck time.Time
 }
 
 type SerialConfig struct {
-	BaudRate        int
-	DataBits        int
-	StopBits        int
-	Parity          string
-	ReadTimeout     time.Duration
-	ReconnectDelay  time.Duration
-	MaxReconnects   int
-	AutoRestore     bool
+	BaudRate       int
+	DataBits       int
+	StopBits       int
+	Parity         string
+	ReadTimeout    time.Duration
+	ReconnectDelay time.Duration
+	MaxReconnects  int
+	AutoRestore    bool
 }

@@ -19,16 +19,13 @@ import (
 )
 
 type SerialBridge struct {
-	port            serial.Port
+	ports           map[string]serial.Port // portPath → puerto abierto
 	config          SerialConfig
 	devices         map[string]*DeviceInfo
 	devicesMu       sync.RWMutex
 	hub             *websocket.Hub
 	ctx             context.Context
 	cancel          context.CancelFunc
-	reconnecting    bool
-	reconnectCount  int
-	lastPort        string
 	restoredDevices map[string]bool
 	aggregator      *ReadingAggregator
 	mu              sync.Mutex
@@ -53,6 +50,7 @@ func NewSerialBridge(hub *websocket.Hub) *SerialBridge {
 			MaxReconnects:  10,
 			AutoRestore:    true,
 		},
+		ports:           make(map[string]serial.Port),
 		devices:         make(map[string]*DeviceInfo),
 		restoredDevices: make(map[string]bool),
 		hub:             hub,
@@ -76,70 +74,73 @@ func (sb *SerialBridge) ListPorts() ([]string, error) {
 	return ports, nil
 }
 
-func (sb *SerialBridge) findArduinoPort() (string, error) {
+func (sb *SerialBridge) findAllArduinoPorts() ([]string, error) {
 	ports, err := serial.GetPortsList()
 	if err != nil {
-		return "", err
+		return nil, err
 	}
-
+	var found []string
 	for _, port := range ports {
-		if strings.Contains(port, "ttyUSB") ||
+		if (strings.Contains(port, "ttyUSB") ||
 			strings.Contains(port, "ttyACM") ||
-			strings.Contains(port, "COM") {
-			if !strings.Contains(port, "ttyS") {
-				log.Printf("✅ Arduino encontrado en %s", port)
-				return port, nil
-			}
+			strings.Contains(port, "COM")) &&
+			!strings.Contains(port, "ttyS") {
+			found = append(found, port)
 		}
 	}
-
-	return "", fmt.Errorf("no se encontró Arduino conectado")
+	if len(found) == 0 {
+		return nil, fmt.Errorf("no se encontraron Arduinos conectados")
+	}
+	return found, nil
 }
 
+// Connect conecta un puerto específico (o auto-detecta si portPath=="")
 func (sb *SerialBridge) Connect(portPath string) error {
-	sb.mu.Lock()
-	defer sb.mu.Unlock()
-
 	if portPath == "" {
-		foundPort, err := sb.findArduinoPort()
+		ports, err := sb.findAllArduinoPorts()
 		if err != nil {
 			return err
 		}
-		portPath = foundPort
+		for _, p := range ports {
+			go sb.connectPort(p)
+		}
+		return nil
 	}
+	return sb.connectPort(portPath)
+}
+
+func (sb *SerialBridge) connectPort(portPath string) error {
+	sb.mu.Lock()
+	if _, already := sb.ports[portPath]; already {
+		sb.mu.Unlock()
+		return nil // ya conectado
+	}
+	sb.mu.Unlock()
 
 	log.Printf("🔌 Conectando a Arduino en %s...", portPath)
-
 	mode := &serial.Mode{
 		BaudRate: sb.config.BaudRate,
 		DataBits: sb.config.DataBits,
 		StopBits: serial.OneStopBit,
 		Parity:   serial.NoParity,
 	}
-
 	port, err := serial.Open(portPath, mode)
 	if err != nil {
-		return fmt.Errorf("error abriendo puerto: %w", err)
+		return fmt.Errorf("error abriendo %s: %w", portPath, err)
 	}
-
-	// Timeout corto para que el readLoop no se bloquee en Windows
 	port.SetReadTimeout(sb.config.ReadTimeout)
 
-	sb.port = port
-	sb.lastPort = portPath
-	sb.reconnectCount = 0
-	sb.reconnecting = false
+	sb.mu.Lock()
+	sb.ports[portPath] = port
+	sb.mu.Unlock()
 
 	log.Printf("✅ Conectado a Arduino en %s", portPath)
-
-	go sb.readLoop()
-
+	go sb.readLoop(portPath, port)
 	return nil
 }
 
-func (sb *SerialBridge) readLoop() {
-	reader := bufio.NewReader(sb.port)
-
+func (sb *SerialBridge) readLoop(portPath string, port serial.Port) {
+	reader := bufio.NewReader(port)
 	for {
 		select {
 		case <-sb.ctx.Done():
@@ -148,30 +149,62 @@ func (sb *SerialBridge) readLoop() {
 			line, err := reader.ReadString('\n')
 			if err != nil {
 				if err == io.EOF || strings.Contains(err.Error(), "file already closed") {
-					log.Printf("⚠️ Puerto serial cerrado")
-					sb.handleDisconnection()
+					log.Printf("⚠️ Puerto %s cerrado — reconectando...", portPath)
+					sb.handlePortDisconnection(portPath)
 					return
 				}
-				// En Windows, timeout de lectura es normal cuando no hay datos — ignorar
 				if strings.Contains(err.Error(), "multiple Read calls") ||
 					strings.Contains(err.Error(), "timeout") ||
 					strings.Contains(err.Error(), "i/o timeout") {
-					// Si hay datos parciales, procesarlos igual
 					if len(line) > 0 {
-						sb.processLine(line)
+						sb.processLine(line, portPath)
 					}
 					continue
 				}
-				log.Printf("❌ Error leyendo puerto: %v", err)
+				log.Printf("❌ Error leyendo %s: %v", portPath, err)
 				continue
 			}
-
-			sb.processLine(line)
+			sb.processLine(line, portPath)
 		}
 	}
 }
 
-func (sb *SerialBridge) processLine(line string) {
+func (sb *SerialBridge) handlePortDisconnection(portPath string) {
+	sb.mu.Lock()
+	if port, ok := sb.ports[portPath]; ok {
+		port.Close()
+		delete(sb.ports, portPath)
+	}
+	sb.mu.Unlock()
+
+	// Reconectar este puerto específico después del delay
+	go func() {
+		for i := 0; i < sb.config.MaxReconnects; i++ {
+			select {
+			case <-sb.ctx.Done():
+				return
+			case <-time.After(sb.config.ReconnectDelay):
+			}
+			log.Printf("🔄 Reconectando %s (intento %d/%d)...", portPath, i+1, sb.config.MaxReconnects)
+			if err := sb.connectPort(portPath); err == nil {
+				log.Printf("✅ Reconexión exitosa en %s", portPath)
+				return
+			}
+		}
+		log.Printf("❌ No se pudo reconectar %s tras %d intentos", portPath, sb.config.MaxReconnects)
+	}()
+}
+
+// tarifaChilquinta aplica la tarifa BT1 residencial de Chilquinta
+// Cargo energía: $147.5 CLP/kWh + cargo fijo mensual $1.200 + IVA 19%
+func calcularCostoChilquinta(energiaKwh float64) float64 {
+	const tarifaKwh = 239.0  // CLP/kWh neto (electricidad + coordinación/transporte)
+	const cargoFijo = 2344.0 // CLP mensual neto (admin $1.212 + servicio común $1.578)
+	const iva = 1.19
+	return (energiaKwh*tarifaKwh + cargoFijo) * iva
+}
+
+func (sb *SerialBridge) processLine(line string, portPath string) {
 	line = strings.TrimSpace(line)
 
 	// Limpiar caracteres no imprimibles / BOM al inicio
@@ -201,11 +234,15 @@ func (sb *SerialBridge) processLine(line string) {
 		return
 	}
 
+	// Recalcular costo con tarifa real Chilquinta BT1 (ignora el costo que calcula el Arduino)
+	data.Cost = calcularCostoChilquinta(data.Energy)
+
 	sb.devicesMu.Lock()
 	device, exists := sb.devices[data.DeviceID]
 	if !exists {
 		device = &DeviceInfo{
-			ID: data.DeviceID,
+			ID:       data.DeviceID,
+			PortPath: portPath,
 		}
 		sb.devices[data.DeviceID] = device
 		sb.devicesMu.Unlock()
@@ -218,12 +255,22 @@ func (sb *SerialBridge) processLine(line string) {
 			go sb.restoreDeviceState(data.DeviceID)
 		}
 	} else {
-		// Si ya existe pero no tiene ClienteID cargado, restaurar desde DB
-		needsRestore := device.ClienteID == ""
+		// Si ya existe pero no tiene ClienteID, reintentar carga desde DB cada 10s
+		needsRestore := device.ClienteID == "" && time.Since(device.LastClienteCheck) > 10*time.Second
+		if needsRestore {
+			device.LastClienteCheck = time.Now()
+		}
+		// Si el servicio debería estar activo pero el Arduino reporta 0 corriente, corregir
+		needsServiceSync := device.ClienteID != "" && data.Current == 0 && data.Voltage == 0 &&
+			!data.ServicioActivo && time.Since(device.LastClienteCheck) > 30*time.Second
+		if needsServiceSync {
+			device.LastClienteCheck = time.Now()
+		}
 		sb.devicesMu.Unlock()
-		if needsRestore && !sb.restoredDevices[data.DeviceID] {
-			sb.restoredDevices[data.DeviceID] = true
-			sb.restoreDeviceState(data.DeviceID) // síncrono también
+		if needsRestore {
+			go sb.restoreDeviceState(data.DeviceID)
+		} else if needsServiceSync {
+			go sb.syncServicioEstado(data.DeviceID)
 		}
 	}
 
@@ -246,6 +293,13 @@ func (sb *SerialBridge) processLine(line string) {
 }
 
 func (sb *SerialBridge) saveReading(data *ArduinoData) {
+	// No guardar lecturas si el dispositivo no tiene cliente asignado
+	sb.devicesMu.RLock()
+	device := sb.devices[data.DeviceID]
+	sb.devicesMu.RUnlock()
+	if device == nil || device.ClienteID == "" {
+		return
+	}
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
@@ -329,9 +383,9 @@ func (sb *SerialBridge) registerDevice(data *ArduinoData) {
 		"direccion":         "Sin asignar",
 		"configuracion": bson.M{
 			"voltajeNominal":  220,
-			"corrienteMaxima": 0.5,
-			"potenciaMaxima":  110,
-			"tarifaKwh":       150,
+			"corrienteMaxima": 1.43,
+			"potenciaMaxima":  315,
+			"tarifaKwh":       284,
 		},
 		"activo":        true,
 		"fechaCreacion": time.Now().UnixMilli(),
@@ -374,30 +428,81 @@ func (sb *SerialBridge) sendToWebSocket(data *ArduinoData) {
 		ClienteID: device.ClienteID,
 	}
 
+	log.Printf("📡 WS broadcast — device: %s, clienteID: %q, energia: %.3f, costo: %.2f",
+		data.DeviceID, device.ClienteID, data.Energy, data.Cost)
+
+	sent := false
 	if device.ClienteID != "" {
 		sb.hub.BroadcastToCliente(device.ClienteID, msg)
+		sent = true
 	}
-
 	if device.EmpresaID != "" {
 		sb.hub.BroadcastToEmpresa(device.EmpresaID, msg)
+		sent = true
+	}
+	if !sent {
+		log.Printf("⚠️  Dispositivo %s sin clienteId/empresaId — datos guardados en DB pero no enviados por WS", data.DeviceID)
 	}
 }
 
-func (sb *SerialBridge) restoreAllDevices() {
-	sb.devicesMu.RLock()
-	devices := make([]string, 0, len(sb.devices))
-	for deviceID := range sb.devices {
-		devices = append(devices, deviceID)
+func (sb *SerialBridge) SendCommand(command string) error {
+	return sb.SendCommandToDevice("", command)
+}
+
+// SendCommandToDevice envía un comando al puerto del dispositivo específico
+func (sb *SerialBridge) SendCommandToDevice(deviceID string, command string) error {
+	sb.mu.Lock()
+	defer sb.mu.Unlock()
+
+	if len(sb.ports) == 0 {
+		return fmt.Errorf("no hay puertos conectados")
 	}
-	sb.devicesMu.RUnlock()
 
-	log.Printf("🔄 Restaurando %d dispositivo(s)...", len(devices))
-
-	for _, deviceID := range devices {
-		if !sb.restoredDevices[deviceID] {
-			sb.restoredDevices[deviceID] = true
-			sb.restoreDeviceState(deviceID)
+	// Si se especifica deviceID, buscar su puerto
+	if deviceID != "" {
+		sb.devicesMu.RLock()
+		device, ok := sb.devices[deviceID]
+		sb.devicesMu.RUnlock()
+		if ok && device.PortPath != "" {
+			if port, exists := sb.ports[device.PortPath]; exists {
+				log.Printf("📤 Enviando '%s' a %s (puerto %s)", command, deviceID, device.PortPath)
+				_, err := port.Write([]byte(command + "\n"))
+				return err
+			}
 		}
+	}
+
+	// Fallback: enviar a todos los puertos
+	var lastErr error
+	for portPath, port := range sb.ports {
+		log.Printf("📤 Enviando '%s' a %s", command, portPath)
+		if _, err := port.Write([]byte(command + "\n")); err != nil {
+			lastErr = err
+		}
+	}
+	return lastErr
+}
+
+func (sb *SerialBridge) syncServicioEstado(deviceID string) {
+	collection := config.MongoDB.Collection("dispositivos")
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	var dispositivo bson.M
+	if err := collection.FindOne(ctx, bson.M{"numeroDispositivo": deviceID}).Decode(&dispositivo); err != nil {
+		return
+	}
+
+	estadoServicio := "activo"
+	if es, ok := dispositivo["estadoServicio"].(string); ok && es != "" {
+		estadoServicio = es
+	}
+
+	if estadoServicio == "cortado" {
+		sb.SendCommandToDevice(deviceID, "DESACTIVAR_SERVICIO")
+	} else {
+		log.Printf("🔧 Sincronizando servicio de %s → ACTIVAR_SERVICIO", deviceID)
+		sb.SendCommandToDevice(deviceID, "ACTIVAR_SERVICIO")
 	}
 }
 
@@ -407,9 +512,7 @@ func (sb *SerialBridge) restoreDeviceState(deviceID string) {
 	defer cancel()
 
 	var dispositivo bson.M
-	err := collection.FindOne(ctx, bson.M{"numeroDispositivo": deviceID}).Decode(&dispositivo)
-
-	if err != nil {
+	if err := collection.FindOne(ctx, bson.M{"numeroDispositivo": deviceID}).Decode(&dispositivo); err != nil {
 		log.Printf("⚠️ No se pudo restaurar estado de %s", deviceID)
 		return
 	}
@@ -427,6 +530,17 @@ func (sb *SerialBridge) restoreDeviceState(deviceID string) {
 	}
 	sb.devicesMu.Unlock()
 
+	// Restaurar estado del servicio (activo/cortado)
+	estadoServicio := "activo"
+	if es, ok := dispositivo["estadoServicio"].(string); ok && es != "" {
+		estadoServicio = es
+	}
+	if estadoServicio == "cortado" {
+		sb.SendCommandToDevice(deviceID, "DESACTIVAR_SERVICIO")
+	} else {
+		sb.SendCommandToDevice(deviceID, "ACTIVAR_SERVICIO")
+	}
+
 	if ultimaLectura, ok := dispositivo["ultimaLectura"].(bson.M); ok {
 		if energia, ok := ultimaLectura["energia"].(float64); ok {
 			costo := 0.0
@@ -434,143 +548,20 @@ func (sb *SerialBridge) restoreDeviceState(deviceID string) {
 				costo = c
 			}
 			comando := fmt.Sprintf("RESTORE:%.3f:%.2f", energia, costo)
-			sb.SendCommand(comando)
+			sb.SendCommandToDevice(deviceID, comando)
 		}
-	}
-}
-
-func (sb *SerialBridge) SendCommand(command string) error {
-	sb.mu.Lock()
-	defer sb.mu.Unlock()
-
-	if sb.port == nil {
-		return fmt.Errorf("puerto no conectado")
-	}
-
-	log.Printf("📤 Enviando comando: %s", command)
-
-	_, err := sb.port.Write([]byte(command + "\n"))
-	if err != nil {
-		log.Printf("❌ Error enviando comando: %v", err)
-		return err
-	}
-
-	log.Printf("✅ Comando enviado: %s", command)
-	return nil
-}
-
-func (sb *SerialBridge) handleDisconnection() {
-	sb.mu.Lock()
-	defer sb.mu.Unlock()
-
-	log.Printf("⚠️ Arduino desconectado")
-
-	sb.saveAllDevicesState()
-
-	for deviceID := range sb.restoredDevices {
-		delete(sb.restoredDevices, deviceID)
-	}
-
-	if sb.port != nil {
-		sb.port.Close()
-		sb.port = nil
-	}
-
-	sb.scheduleReconnect()
-}
-
-func (sb *SerialBridge) saveAllDevicesState() {
-	sb.devicesMu.RLock()
-	defer sb.devicesMu.RUnlock()
-
-	log.Printf("💾 Guardando estado de %d dispositivo(s)...", len(sb.devices))
-
-	collection := config.MongoDB.Collection("dispositivos")
-
-	for deviceID, device := range sb.devices {
-		if device.LastReading == nil {
-			continue
-		}
-
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-
-		update := bson.M{
-			"$set": bson.M{
-				"ultimaLectura": bson.M{
-					"voltaje":   device.LastReading.Voltage,
-					"corriente": device.LastReading.Current,
-					"potencia":  device.LastReading.Power,
-					"energia":   device.LastReading.Energy,
-					"costo":     device.LastReading.Cost,
-					"timestamp": time.Now(),
-				},
-			},
-		}
-
-		_, err := collection.UpdateOne(ctx, bson.M{"numeroDispositivo": deviceID}, update)
-		cancel()
-
-		if err != nil {
-			log.Printf("❌ Error guardando estado de %s: %v", deviceID, err)
-		} else {
-			log.Printf("✅ Estado guardado para %s", deviceID)
-		}
-	}
-}
-
-func (sb *SerialBridge) scheduleReconnect() {
-	if sb.reconnecting || sb.reconnectCount >= sb.config.MaxReconnects {
-		if sb.reconnectCount >= sb.config.MaxReconnects {
-			log.Printf("❌ Máximo de reconexiones alcanzado (%d)", sb.config.MaxReconnects)
-		}
-		return
-	}
-
-	sb.reconnecting = true
-	sb.reconnectCount++
-
-	log.Printf("🔄 Programando reconexión (intento %d/%d) en %v...",
-		sb.reconnectCount, sb.config.MaxReconnects, sb.config.ReconnectDelay)
-
-	time.AfterFunc(sb.config.ReconnectDelay, func() {
-		sb.attemptReconnect()
-	})
-}
-
-func (sb *SerialBridge) attemptReconnect() {
-	log.Printf("🔌 Intentando reconectar (intento %d/%d)...",
-		sb.reconnectCount, sb.config.MaxReconnects)
-
-	portToUse, err := sb.findArduinoPort()
-	if err != nil {
-		log.Printf("⚠️ No se encontró Arduino: %v", err)
-		sb.reconnecting = false
-		sb.scheduleReconnect()
-		return
-	}
-
-	sb.mu.Lock()
-	sb.reconnecting = false
-	sb.mu.Unlock()
-
-	if err := sb.Connect(portToUse); err != nil {
-		log.Printf("❌ Error en reconexión: %v", err)
-		sb.scheduleReconnect()
-	} else {
-		log.Printf("✅ Reconexión exitosa")
 	}
 }
 
 func (sb *SerialBridge) IsConnected() bool {
 	sb.mu.Lock()
 	defer sb.mu.Unlock()
-	return sb.port != nil
+	return len(sb.ports) > 0
 }
 
 func (sb *SerialBridge) GetDevices() []*DeviceInfo {
 	sb.devicesMu.RLock()
 	defer sb.devicesMu.RUnlock()
-
 	devices := make([]*DeviceInfo, 0, len(sb.devices))
 	for _, device := range sb.devices {
 		devices = append(devices, device)
@@ -580,25 +571,14 @@ func (sb *SerialBridge) GetDevices() []*DeviceInfo {
 
 func (sb *SerialBridge) Disconnect() {
 	sb.cancel()
-
 	sb.mu.Lock()
 	defer sb.mu.Unlock()
-
 	if sb.aggregator != nil {
 		sb.aggregator.FlushAll()
 	}
-
-	if sb.port != nil {
-		sb.saveAllDevicesState()
-		sb.port.Close()
-		sb.port = nil
-		log.Printf("✅ Puerto serial cerrado")
+	for portPath, port := range sb.ports {
+		port.Close()
+		delete(sb.ports, portPath)
+		log.Printf("✅ Puerto %s cerrado", portPath)
 	}
-}
-
-func min(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
 }

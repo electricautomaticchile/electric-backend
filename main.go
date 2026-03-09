@@ -124,7 +124,7 @@ func main() {
 		"GET:/api/dashboard/cliente": 120,
 		"GET:/api/estadisticas/*":    100,
 
-		"GET:/api/export/*": 5,
+		"GET:/api/reportes/*": 10,
 
 		"GET:/api/mapa/dispositivos":  60,
 		"GET:/api/mapa/ubicacion/:id": 100,
@@ -191,7 +191,6 @@ func main() {
 	notificacionRepo := data.NewNotificacionRepository()
 	boletaRepo := data.NewBoletaRepository()
 	ticketRepo := data.NewTicketRepository()
-	configuracionRepo := data.NewConfiguracionRepository()
 	estadisticaRepo := data.NewEstadisticaRepository()
 	cotizacionRepo := data.NewCotizacionRepository()
 	tarifaRepo := data.NewTarifaRepository()
@@ -216,23 +215,20 @@ func main() {
 		log.Printf("⚠️ Servicio de imágenes de perfil deshabilitado (S3 no configurado)")
 	}
 
-	exportService := services.NewExportService(clienteRepo, dispositivoRepo, notificacionRepo, boletaRepo)
+	reportesService := services.NewReportesService(clienteRepo, dispositivoRepo, notificacionRepo, boletaRepo)
 
 	usuarioEmpresaRepo := data.NewUsuarioEmpresaRepository()
 	usuarioEmpresaService := services.NewUsuarioEmpresaService(usuarioEmpresaRepo, emailService)
 
 	refreshTokenRepo := data.NewRefreshTokenRepository()
-	authService := services.NewAuthService(empresaRepo, clienteRepo, usuarioEmpresaRepo, recoveryTokenRepo, refreshTokenRepo, emailService)
 	clienteService := services.NewClienteService(clienteRepo, emailService)
 	empresaService := services.NewEmpresaService(empresaRepo)
 	dispositivoService := services.NewDispositivoService(dispositivoRepo, clienteRepo, wsNotifierService)
 	notificacionService := services.NewNotificacionService(notificacionRepo, wsNotifierService)
 	boletaService := services.NewBoletaService(boletaRepo, clienteRepo, emailService)
 	ticketService := services.NewTicketService(ticketRepo, notificacionRepo, emailService, clienteRepo, empresaRepo)
-	configuracionService := services.NewConfiguracionService(configuracionRepo)
 	cotizacionService := services.NewCotizacionService(cotizacionRepo)
 	alertaAutomaticaService := services.NewMonitoreoService(notificacionRepo, dispositivoRepo, clienteRepo, empresaRepo)
-	reporteService := services.NewReporteService(clienteRepo, empresaRepo, dispositivoRepo, boletaRepo)
 	monitoreoService := alertaAutomaticaService
 	tarifaService := services.NewTarifaService(tarifaRepo)
 	consumoService := services.NewConsumoService(clienteRepo, tarifaRepo)
@@ -242,10 +238,8 @@ func main() {
 	notificacionesScheduler.Iniciar()
 	log.Printf("✅ Scheduler de notificaciones SMS iniciado")
 
-	notificacionSMSController := controllers.NewNotificacionSMSController(notificacionSMSService)
-
 	// Inicializar facades
-	authFacade := facades.NewAuthFacade(authService)
+	authFacade := facades.NewAuthFacade(services.NewAuthService(empresaRepo, clienteRepo, usuarioEmpresaRepo, recoveryTokenRepo, refreshTokenRepo, emailService))
 	clienteFacade := facades.NewClienteFacade(clienteService)
 	empresaFacade := facades.NewEmpresaFacade(empresaService)
 	dispositivoFacade := facades.NewDispositivoFacade(dispositivoService)
@@ -261,18 +255,15 @@ func main() {
 	notificacionController := controllers.NewNotificacionController(notificacionService)
 	boletaController := controllers.NewBoletaController(boletaService)
 	ticketController := controllers.NewTicketController(ticketService)
-	configuracionController := controllers.NewConfiguracionController(configuracionService)
 	estadisticaController := controllers.NewEstadisticaController(dashboardService)
 	cotizacionController := controllers.NewCotizacionController(cotizacionFacade)
 	wsController := controllers.NewWebSocketController(wsHub)
 	arduinoController := controllers.NewArduinoController(arduinoBridge)
-	dashboardClienteController := controllers.NewDashboardClienteController(clienteFacade, dispositivoFacade, boletaService, dashboardService)
-	reporteController := controllers.NewReporteController(reporteService)
+	dashboardClienteController := controllers.NewDashboardClienteController(clienteFacade, dispositivoFacade, boletaService, dashboardService, arduinoBridge)
+	reportesController := controllers.NewReportesController(reportesService)
 	mapaController := controllers.NewMapaController(dispositivoService, clienteService)
 	antifraudeController := controllers.NewAntifraudeController(monitoreoService)
 	dashboardController := controllers.NewDashboardController(dashboardService)
-	exportController := controllers.NewExportController(exportService)
-	auditLogController := controllers.NewAuditLogController(auditLogService)
 	tarifaController := controllers.NewTarifaController(tarifaService)
 	consumoController := controllers.NewConsumoController(consumoService)
 	iaController := controllers.NewIAController(iaService)
@@ -321,17 +312,13 @@ func main() {
 		setupEmpresaRoutes(api, empresaController)
 		setupDispositivoRoutes(api, dispositivoController)
 		setupNotificacionRoutes(api, notificacionController)
-		setupNotificacionSMSRoutes(api, notificacionSMSController)
 		setupBoletaRoutes(api, boletaController)
 		setupTicketRoutes(api, ticketController)
-		setupConfiguracionRoutes(api, configuracionController)
 		setupEstadisticaRoutes(api, estadisticaController)
-		setupReporteRoutes(api, reporteController)
+		setupReportesRoutes(api, reportesController)
 		setupMapaRoutes(api, mapaController)
 		setupAntifraudeRoutes(api, antifraudeController)
 		setupDashboardRoutes(api, dashboardController)
-		setupExportRoutes(api, exportController)
-		setupAuditLogRoutes(api, auditLogController)
 		setupTarifaRoutes(api, tarifaController)
 		setupConsumoRoutes(api, consumoController)
 	}
@@ -417,15 +404,6 @@ func setupNotificacionRoutes(router *gin.RouterGroup, ctrl *controllers.Notifica
 	}
 }
 
-func setupNotificacionSMSRoutes(router *gin.RouterGroup, ctrl *controllers.NotificacionSMSController) {
-	sms := router.Group("/notificaciones-sms")
-	sms.Use(middleware.AuthMiddleware())
-	{
-		sms.POST("/enviar-manual", ctrl.EnviarNotificacionManual)
-		sms.POST("/verificar-boletas", ctrl.VerificarBoletasImpagas)
-	}
-}
-
 func setupBoletaRoutes(router *gin.RouterGroup, ctrl *controllers.BoletaController) {
 	boletas := router.Group("/boletas")
 	boletas.Use(middleware.AuthMiddleware())
@@ -450,16 +428,6 @@ func setupTicketRoutes(router *gin.RouterGroup, ctrl *controllers.TicketControll
 	}
 }
 
-func setupConfiguracionRoutes(router *gin.RouterGroup, ctrl *controllers.ConfiguracionController) {
-	configuracion := router.Group("/configuracion")
-	configuracion.Use(middleware.AuthMiddleware())
-	{
-		configuracion.GET("", ctrl.ObtenerTodas)
-		configuracion.GET("/:clave", ctrl.ObtenerPorClave)
-		configuracion.PUT("", ctrl.Actualizar)
-	}
-}
-
 func setupEstadisticaRoutes(router *gin.RouterGroup, ctrl *controllers.EstadisticaController) {
 	estadisticas := router.Group("/estadisticas")
 	estadisticas.Use(middleware.AuthMiddleware())
@@ -469,14 +437,15 @@ func setupEstadisticaRoutes(router *gin.RouterGroup, ctrl *controllers.Estadisti
 	}
 }
 
-func setupReporteRoutes(router *gin.RouterGroup, ctrl *controllers.ReporteController) {
+func setupReportesRoutes(router *gin.RouterGroup, ctrl *controllers.ReportesController) {
 	reportes := router.Group("/reportes")
 	reportes.Use(middleware.AuthMiddleware())
 	{
-		reportes.GET("/clientes", ctrl.GenerarReporteClientes)
-		reportes.GET("/dispositivos", ctrl.GenerarReporteDispositivos)
-		reportes.GET("/boletas", ctrl.GenerarReporteBoletas)
-		reportes.GET("/consumo", ctrl.GenerarReporteConsumo)
+		reportes.GET("/clientes", ctrl.Clientes)
+		reportes.GET("/dispositivos", ctrl.Dispositivos)
+		reportes.GET("/alertas", ctrl.Alertas)
+		reportes.GET("/boletas", ctrl.Boletas)
+		reportes.GET("/consumo", ctrl.Consumo)
 	}
 }
 
@@ -512,32 +481,6 @@ func setupImagenPerfilRoutes(router *gin.RouterGroup, ctrl *controllers.ImagenPe
 		imagenes.POST("/:tipoUsuario/:userId/upload", ctrl.SubirYActualizarImagen)
 		imagenes.GET("/:tipoUsuario/:userId", ctrl.ObtenerImagenPerfil)
 		imagenes.DELETE("/:tipoUsuario/:userId", ctrl.EliminarImagenPerfil)
-	}
-}
-
-func setupExportRoutes(router *gin.RouterGroup, ctrl *controllers.ExportController) {
-	export := router.Group("/export")
-	export.Use(middleware.AuthMiddleware())
-	{
-		export.GET("/clientes/excel", ctrl.ExportarClientesExcel)
-		export.GET("/clientes/pdf", ctrl.ExportarClientesPDF)
-		export.GET("/dispositivos/excel", ctrl.ExportarDispositivosExcel)
-		export.GET("/dispositivos/pdf", ctrl.ExportarDispositivosPDF)
-		export.GET("/alertas/excel", ctrl.ExportarAlertasExcel)
-		export.GET("/boletas/excel", ctrl.ExportarBoletasExcel)
-		export.GET("/boletas/:id/pdf", ctrl.ExportarBoletaPDF)
-	}
-}
-
-func setupAuditLogRoutes(router *gin.RouterGroup, ctrl *controllers.AuditLogController) {
-	audit := router.Group("/audit-logs")
-	audit.Use(middleware.AuthMiddleware())
-	{
-		audit.GET("", ctrl.GetLogs)
-		audit.GET("/user/:userId", ctrl.GetUserLogs)
-		audit.GET("/resource/:resource/:resourceId", ctrl.GetResourceHistory)
-		audit.GET("/statistics", ctrl.GetStatistics)
-		audit.DELETE("/clean", ctrl.CleanOldLogs)
 	}
 }
 

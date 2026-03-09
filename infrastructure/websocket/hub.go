@@ -11,7 +11,7 @@ type Hub struct {
 	Broadcast  chan []byte
 	Register   chan *Client
 	Unregister chan *Client
-	
+
 	empresaClients map[string]map[*Client]bool
 	clienteClients map[string]map[*Client]bool
 	mu             sync.RWMutex
@@ -34,7 +34,7 @@ func (h *Hub) Run() {
 		case client := <-h.Register:
 			h.mu.Lock()
 			h.Clients[client] = true
-			
+
 			if client.UserType == "empresa" && client.EmpresaID != "" {
 				if h.empresaClients[client.EmpresaID] == nil {
 					h.empresaClients[client.EmpresaID] = make(map[*Client]bool)
@@ -47,7 +47,7 @@ func (h *Hub) Run() {
 				h.clienteClients[client.UserID][client] = true
 			}
 			h.mu.Unlock()
-			
+
 			log.Printf("Client connected: %s (type: %s)", client.UserID, client.UserType)
 
 		case client := <-h.Unregister:
@@ -55,7 +55,7 @@ func (h *Hub) Run() {
 			if _, ok := h.Clients[client]; ok {
 				delete(h.Clients, client)
 				close(client.Send)
-				
+
 				if client.UserType == "empresa" && client.EmpresaID != "" {
 					if clients, ok := h.empresaClients[client.EmpresaID]; ok {
 						delete(clients, client)
@@ -73,7 +73,7 @@ func (h *Hub) Run() {
 				}
 			}
 			h.mu.Unlock()
-			
+
 			log.Printf("Client disconnected: %s", client.UserID)
 
 		case message := <-h.Broadcast:
@@ -103,18 +103,18 @@ func (h *Hub) BroadcastToAll(msg Message) {
 func (h *Hub) BroadcastToEmpresa(empresaID string, msg Message) {
 	h.mu.RLock()
 	defer h.mu.RUnlock()
-	
+
 	clients, ok := h.empresaClients[empresaID]
 	if !ok {
 		return
 	}
-	
+
 	data, err := json.Marshal(msg)
 	if err != nil {
 		log.Printf("Error marshaling message: %v", err)
 		return
 	}
-	
+
 	for client := range clients {
 		select {
 		case client.Send <- data:
@@ -128,18 +128,19 @@ func (h *Hub) BroadcastToEmpresa(empresaID string, msg Message) {
 func (h *Hub) BroadcastToCliente(clienteID string, msg Message) {
 	h.mu.RLock()
 	defer h.mu.RUnlock()
-	
+
 	clients, ok := h.clienteClients[clienteID]
 	if !ok {
 		return
 	}
-	
+	log.Printf("📡 WS → clienteID=%q (%d conexión/es)", clienteID, len(clients))
+
 	data, err := json.Marshal(msg)
 	if err != nil {
 		log.Printf("Error marshaling message: %v", err)
 		return
 	}
-	
+
 	for client := range clients {
 		select {
 		case client.Send <- data:
