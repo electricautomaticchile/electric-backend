@@ -15,18 +15,12 @@ type ConsumoController struct {
 	dispositivoFacade *facades.DispositivoFacade
 }
 
-func NewConsumoController(consumoService *services.ConsumoService) *ConsumoController {
-	return &ConsumoController{
-		consumoService: consumoService,
+func NewConsumoController(consumoService *services.ConsumoService, dispositivoFacade ...*facades.DispositivoFacade) *ConsumoController {
+	c := &ConsumoController{consumoService: consumoService}
+	if len(dispositivoFacade) > 0 {
+		c.dispositivoFacade = dispositivoFacade[0]
 	}
-}
-
-// NewConsumoControllerFull permite inyectar también el facade de dispositivos
-func NewConsumoControllerFull(consumoService *services.ConsumoService, dispositivoFacade *facades.DispositivoFacade) *ConsumoController {
-	return &ConsumoController{
-		consumoService:    consumoService,
-		dispositivoFacade: dispositivoFacade,
-	}
+	return c
 }
 
 func (c *ConsumoController) CalcularCostoActual(gctx *gin.Context) {
