@@ -18,11 +18,13 @@ type AsignarDispositivoRecipe struct {
 }
 
 type ActualizarLecturaRecipe struct {
-	Voltage     float64 `json:"voltage" binding:"min=0,max=500"`
-	Current     float64 `json:"current" binding:"min=0,max=200"`
-	ActivePower float64 `json:"activePower" binding:"min=0"`
-	Energy      float64 `json:"energy" binding:"min=0"`
-	Cost        float64 `json:"cost" binding:"min=0"`
+	Voltage        float64 `json:"voltage" binding:"min=0,max=500"`
+	Current        float64 `json:"current" binding:"min=0,max=200"`
+	ActivePower    float64 `json:"activePower" binding:"min=0"`
+	Energy         float64 `json:"energy" binding:"min=0"`
+	Cost           float64 `json:"cost" binding:"min=0"`
+	Frecuencia     float64 `json:"frecuencia" binding:"min=0,max=100"`
+	FactorPotencia float64 `json:"factorPotencia" binding:"min=0,max=1"`
 }
 
 type CambiarEstadoDispositivoRecipe struct {

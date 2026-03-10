@@ -35,7 +35,7 @@ func (s *DispositivoService) ObtenerTodos(ctx context.Context, empresaID string)
 	modelos := make([]*models.DispositivoModel, len(dispositivos))
 	for i, dispositivo := range dispositivos {
 		model := s.entityToModel(dispositivo)
-		
+
 		if !dispositivo.ClienteID.IsZero() {
 			cliente, err := s.clienteRepo.FindByID(ctx, dispositivo.ClienteID.Hex())
 			if err == nil && cliente != nil {
@@ -46,7 +46,7 @@ func (s *DispositivoService) ObtenerTodos(ctx context.Context, empresaID string)
 				}
 			}
 		}
-		
+
 		modelos[i] = model
 	}
 
@@ -156,12 +156,14 @@ func (s *DispositivoService) AsignarCliente(ctx context.Context, id string, clie
 
 func (s *DispositivoService) ActualizarUltimaLectura(ctx context.Context, numeroDispositivo string, r *recipe.ActualizarLecturaRecipe) error {
 	lectura := &entities.LecturaDispositivo{
-		Voltage:     r.Voltage,
-		Current:     r.Current,
-		ActivePower: r.ActivePower,
-		Energy:      r.Energy,
-		Cost:        r.Cost,
-		Timestamp:   time.Now(),
+		Voltage:        r.Voltage,
+		Current:        r.Current,
+		ActivePower:    r.ActivePower,
+		Energy:         r.Energy,
+		Cost:           r.Cost,
+		Frecuencia:     r.Frecuencia,
+		FactorPotencia: r.FactorPotencia,
+		Timestamp:      time.Now(),
 	}
 
 	if err := s.dispositivoRepo.UpdateUltimaLectura(ctx, numeroDispositivo, lectura); err != nil {
@@ -188,30 +190,32 @@ func (s *DispositivoService) Eliminar(ctx context.Context, id string) error {
 
 func (s *DispositivoService) entityToModel(entity *entities.DispositivoEntity) *models.DispositivoModel {
 	model := &models.DispositivoModel{
-		ID:                  entity.ID.Hex(),
-		NumeroDispositivo:   entity.NumeroDispositivo,
-		Nombre:              entity.Nombre,
-		Tipo:                entity.Tipo,
-		ClienteID:           entity.ClienteID.Hex(),
-		EmpresaID:           entity.EmpresaID.Hex(),
-		Estado:              entity.Estado,
-		Latitud:             entity.Latitud,
-		Longitud:            entity.Longitud,
-		Direccion:           entity.Direccion,
-		Configuracion:       entity.Configuracion,
-		Activo:              entity.Activo,
-		FechaCreacion:       entity.FechaCreacion,
-		FechaActualizacion:  entity.FechaActualizacion,
+		ID:                 entity.ID.Hex(),
+		NumeroDispositivo:  entity.NumeroDispositivo,
+		Nombre:             entity.Nombre,
+		Tipo:               entity.Tipo,
+		ClienteID:          entity.ClienteID.Hex(),
+		EmpresaID:          entity.EmpresaID.Hex(),
+		Estado:             entity.Estado,
+		Latitud:            entity.Latitud,
+		Longitud:           entity.Longitud,
+		Direccion:          entity.Direccion,
+		Configuracion:      entity.Configuracion,
+		Activo:             entity.Activo,
+		FechaCreacion:      entity.FechaCreacion,
+		FechaActualizacion: entity.FechaActualizacion,
 	}
 
 	if entity.UltimaLectura != nil {
 		model.UltimaLectura = &models.LecturaDispositivoModel{
-			Voltage:     entity.UltimaLectura.Voltage,
-			Current:     entity.UltimaLectura.Current,
-			ActivePower: entity.UltimaLectura.ActivePower,
-			Energy:      entity.UltimaLectura.Energy,
-			Cost:        entity.UltimaLectura.Cost,
-			Timestamp:   entity.UltimaLectura.Timestamp,
+			Voltage:        entity.UltimaLectura.Voltage,
+			Current:        entity.UltimaLectura.Current,
+			ActivePower:    entity.UltimaLectura.ActivePower,
+			Energy:         entity.UltimaLectura.Energy,
+			Cost:           entity.UltimaLectura.Cost,
+			Frecuencia:     entity.UltimaLectura.Frecuencia,
+			FactorPotencia: entity.UltimaLectura.FactorPotencia,
+			Timestamp:      entity.UltimaLectura.Timestamp,
 		}
 	}
 

@@ -9,12 +9,14 @@ type Reading struct {
 }
 
 type LecturaDispositivoModel struct {
-	Voltage     float64   `json:"voltage"`
-	Current     float64   `json:"current"`
-	ActivePower float64   `json:"activePower"`
-	Energy      float64   `json:"energy"`
-	Cost        float64   `json:"cost"`
-	Timestamp   time.Time `json:"timestamp"`
+	Voltage        float64   `json:"voltage"`
+	Current        float64   `json:"current"`
+	ActivePower    float64   `json:"activePower"`
+	Energy         float64   `json:"energy"`
+	Cost           float64   `json:"cost"`
+	Frecuencia     float64   `json:"frecuencia"`
+	FactorPotencia float64   `json:"factorPotencia"`
+	Timestamp      time.Time `json:"timestamp"`
 }
 
 type ClienteBasicoModel struct {
@@ -24,29 +26,29 @@ type ClienteBasicoModel struct {
 }
 
 type DispositivoModel struct {
-	ID                 string                 `json:"id"`
-	Name               string                 `json:"name"`
-	Type               string                 `json:"type"`
-	Status             bool                   `json:"status"`
-	Location           string                 `json:"location,omitempty"`
-	LastActivity       *time.Time             `json:"lastActivity,omitempty"`
-	Metadata           map[string]interface{} `json:"metadata,omitempty"`
-	
-	NumeroDispositivo  string                      `json:"numeroDispositivo,omitempty"`
-	Nombre             string                      `json:"nombre,omitempty"`
-	Tipo               string                      `json:"tipo,omitempty"`
-	ClienteID          string                      `json:"clienteId,omitempty"`
-	EmpresaID          string                      `json:"empresaId,omitempty"`
-	Estado             string                      `json:"estado,omitempty"`
-	Latitud            float64                     `json:"latitud,omitempty"`
-	Longitud           float64                     `json:"longitud,omitempty"`
-	Direccion          string                      `json:"direccion,omitempty"`
-	UltimaLectura      *LecturaDispositivoModel    `json:"ultimaLectura,omitempty"`
-	Configuracion      map[string]interface{}      `json:"configuracion,omitempty"`
-	Activo             bool                        `json:"activo"`
-	FechaCreacion      time.Time                   `json:"fechaCreacion,omitempty"`
-	FechaActualizacion *time.Time                  `json:"fechaActualizacion,omitempty"`
-	Cliente            *ClienteBasicoModel         `json:"cliente,omitempty"`
+	ID           string                 `json:"id"`
+	Name         string                 `json:"name"`
+	Type         string                 `json:"type"`
+	Status       bool                   `json:"status"`
+	Location     string                 `json:"location,omitempty"`
+	LastActivity *time.Time             `json:"lastActivity,omitempty"`
+	Metadata     map[string]interface{} `json:"metadata,omitempty"`
+
+	NumeroDispositivo  string                   `json:"numeroDispositivo,omitempty"`
+	Nombre             string                   `json:"nombre,omitempty"`
+	Tipo               string                   `json:"tipo,omitempty"`
+	ClienteID          string                   `json:"clienteId,omitempty"`
+	EmpresaID          string                   `json:"empresaId,omitempty"`
+	Estado             string                   `json:"estado,omitempty"`
+	Latitud            float64                  `json:"latitud,omitempty"`
+	Longitud           float64                  `json:"longitud,omitempty"`
+	Direccion          string                   `json:"direccion,omitempty"`
+	UltimaLectura      *LecturaDispositivoModel `json:"ultimaLectura,omitempty"`
+	Configuracion      map[string]interface{}   `json:"configuracion,omitempty"`
+	Activo             bool                     `json:"activo"`
+	FechaCreacion      time.Time                `json:"fechaCreacion,omitempty"`
+	FechaActualizacion *time.Time               `json:"fechaActualizacion,omitempty"`
+	Cliente            *ClienteBasicoModel      `json:"cliente,omitempty"`
 }
 
 type MeterDevice struct {
