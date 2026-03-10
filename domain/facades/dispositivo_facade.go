@@ -49,6 +49,16 @@ func (f *DispositivoFacade) CambiarEstado(ctx context.Context, id string, r *rec
 	return f.dispositivoService.CambiarEstado(ctx, id, r)
 }
 
+func (f *DispositivoFacade) ActualizarLectura(ctx context.Context, deviceID string, voltaje, corriente, potencia, energia, frecuencia, factorPotencia float64) error {
+	r := &recipe.ActualizarLecturaRecipe{
+		Voltage:     voltaje,
+		Current:     corriente,
+		ActivePower: potencia,
+		Energy:      energia,
+	}
+	return f.dispositivoService.ActualizarUltimaLectura(ctx, deviceID, r)
+}
+
 func (f *DispositivoFacade) Eliminar(ctx context.Context, id string) error {
 	return f.dispositivoService.Eliminar(ctx, id)
 }

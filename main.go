@@ -321,6 +321,13 @@ func main() {
 		setupDashboardRoutes(api, dashboardController)
 		setupTarifaRoutes(api, tarifaController)
 		setupConsumoRoutes(api, consumoController)
+
+		// Rutas IoT — recibe datos desde AWS IoT Core Rules Engine
+		iot := api.Group("/iot")
+		{
+			iot.POST("/lectura", dispositivoController.RecibirLecturaIoT)
+			iot.POST("/comando-ejecutado", dispositivoController.ComandoEjecutado)
+		}
 	}
 
 	ctx := context.Background()

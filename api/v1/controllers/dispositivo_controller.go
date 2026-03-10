@@ -30,14 +30,14 @@ func (ctrl *DispositivoController) ObtenerTodos(gctx *gin.Context) {
 
 	page, _ := strconv.Atoi(gctx.DefaultQuery("page", "1"))
 	limit, _ := strconv.Atoi(gctx.DefaultQuery("limit", "50"))
-	
+
 	if page < 1 {
 		page = 1
 	}
 	if limit < 1 || limit > 100 {
 		limit = 50
 	}
-	
+
 	skip := (page - 1) * limit
 
 	dispositivos, err := ctrl.dispositivoFacade.ObtenerTodos(gctx.Request.Context(), empresaID.(string))
@@ -45,13 +45,13 @@ func (ctrl *DispositivoController) ObtenerTodos(gctx *gin.Context) {
 		gctx.Error(err)
 		return
 	}
-	
+
 	total := len(dispositivos)
 	end := skip + limit
 	if end > total {
 		end = total
 	}
-	
+
 	paginatedDispositivos := dispositivos
 	if skip < total {
 		paginatedDispositivos = dispositivos[skip:end]
@@ -197,9 +197,9 @@ func (ctrl *DispositivoController) ActualizarLectura(gctx *gin.Context) {
 	}
 
 	gctx.JSON(http.StatusOK, gin.H{
-"success": true,
-"message": "Lectura actualizada correctamente",
-})
+		"success": true,
+		"message": "Lectura actualizada correctamente",
+	})
 }
 
 func (ctrl *DispositivoController) CambiarEstado(gctx *gin.Context) {
@@ -218,9 +218,9 @@ func (ctrl *DispositivoController) CambiarEstado(gctx *gin.Context) {
 	}
 
 	gctx.JSON(http.StatusOK, gin.H{
-"success": true,
-"message": "Estado actualizado correctamente",
-})
+		"success": true,
+		"message": "Estado actualizado correctamente",
+	})
 }
 
 func (ctrl *DispositivoController) Eliminar(gctx *gin.Context) {
@@ -233,7 +233,58 @@ func (ctrl *DispositivoController) Eliminar(gctx *gin.Context) {
 	}
 
 	gctx.JSON(http.StatusOK, gin.H{
-"success": true,
-"message": "Dispositivo eliminado correctamente",
-})
+		"success": true,
+		"message": "Dispositivo eliminado correctamente",
+	})
+}
+
+func (ctrl *DispositivoController) RecibirLecturaIoT(gctx *gin.Context) {
+	var payload struct {
+		DeviceID       string  `json:"deviceId"`
+		Voltaje        float64 `json:"voltaje"`
+		Corriente      float64 `json:"corriente"`
+		Potencia       float64 `json:"potencia"`
+		Energia        float64 `json:"energia"`
+		Frecuencia     float64 `json:"frecuencia"`
+		FactorPotencia float64 `json:"factorPotencia"`
+		Timestamp      int64   `json:"timestamp"`
+	}
+
+	if err := gctx.ShouldBindJSON(&payload); err != nil {
+		gctx.JSON(http.StatusBadRequest, gin.H{"error": "payload inválido"})
+		return
+	}
+
+	err := ctrl.dispositivoFacade.ActualizarLectura(
+		gctx.Request.Context(),
+		payload.DeviceID,
+		payload.Voltaje,
+		payload.Corriente,
+		payload.Potencia,
+		payload.Energia,
+		payload.Frecuencia,
+		payload.FactorPotencia,
+	)
+	if err != nil {
+		gctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	gctx.JSON(http.StatusOK, gin.H{"ok": true})
+}
+
+func (ctrl *DispositivoController) ComandoEjecutado(gctx *gin.Context) {
+	var payload struct {
+		DeviceID  string `json:"deviceId"`
+		Comando   string `json:"comando"`
+		Estado    string `json:"estado"`
+		Timestamp int64  `json:"timestamp"`
+	}
+
+	if err := gctx.ShouldBindJSON(&payload); err != nil {
+		gctx.JSON(http.StatusBadRequest, gin.H{"error": "payload inválido"})
+		return
+	}
+
+	gctx.JSON(http.StatusOK, gin.H{"ok": true})
 }
