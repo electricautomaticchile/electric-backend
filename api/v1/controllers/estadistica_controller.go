@@ -44,3 +44,35 @@ func (ctrl *EstadisticaController) ObtenerEstadisticasGlobales(gctx *gin.Context
 		"data":    estadisticas,
 	})
 }
+
+// ObtenerResumen godoc
+// GET /v1/estadisticas/resumen?empresaID=X
+// Retorna: clientes activos, kWh totales este mes, costo promedio por cliente, alertas activas
+func (ctrl *EstadisticaController) ObtenerResumen(gctx *gin.Context) {
+	empresaID := gctx.Query("empresaID")
+
+	stats, err := ctrl.dashboardService.ObtenerEstadisticas(gctx.Request.Context(), empresaID)
+	if err != nil {
+		gctx.Error(err)
+		return
+	}
+
+	costoPorCliente := 0.0
+	if stats.ClientesActivos > 0 {
+		// Estimación: tarifa BT-1A Chilquinta 284 CLP/kWh
+		costoPorCliente = (stats.ConsumoTotal * 284) / float64(stats.ClientesActivos)
+	}
+
+	gctx.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"data": gin.H{
+			"clientesActivos":     stats.ClientesActivos,
+			"clientesTotales":     stats.ClientesTotales,
+			"kwhTotalMes":         stats.ConsumoTotal,
+			"costoPorCliente":     costoPorCliente,
+			"alertasActivas":      stats.AlertasActivas,
+			"dispositivosActivos": stats.DispositivosActivos,
+			"dispositivosTotales": stats.DispositivosTotales,
+		},
+	})
+}

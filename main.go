@@ -434,6 +434,7 @@ func setupEstadisticaRoutes(router *gin.RouterGroup, ctrl *controllers.Estadisti
 	{
 		estadisticas.GET("/cliente/:clienteId", ctrl.ObtenerConsumoCliente)
 		estadisticas.GET("/globales", ctrl.ObtenerEstadisticasGlobales)
+		estadisticas.GET("/resumen", ctrl.ObtenerResumen)
 	}
 }
 
@@ -503,5 +504,6 @@ func setupConsumoRoutes(router *gin.RouterGroup, ctrl *controllers.ConsumoContro
 	consumo.Use(middleware.AuthMiddleware())
 	{
 		consumo.GET("/cliente/:clienteId/calcular", ctrl.CalcularCostoActual)
+		consumo.GET("/cliente/:clienteId/actual", ctrl.ObtenerConsumoActual)
 	}
 }

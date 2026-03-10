@@ -1,6 +1,7 @@
 package controllers
 
 import (
+	"electric-backend/domain/facades"
 	"electric-backend/domain/services"
 	"electric-backend/types"
 	"net/http"
@@ -10,12 +11,21 @@ import (
 )
 
 type ConsumoController struct {
-	consumoService *services.ConsumoService
+	consumoService    *services.ConsumoService
+	dispositivoFacade *facades.DispositivoFacade
 }
 
 func NewConsumoController(consumoService *services.ConsumoService) *ConsumoController {
 	return &ConsumoController{
 		consumoService: consumoService,
+	}
+}
+
+// NewConsumoControllerFull permite inyectar también el facade de dispositivos
+func NewConsumoControllerFull(consumoService *services.ConsumoService, dispositivoFacade *facades.DispositivoFacade) *ConsumoController {
+	return &ConsumoController{
+		consumoService:    consumoService,
+		dispositivoFacade: dispositivoFacade,
 	}
 }
 
@@ -43,5 +53,54 @@ func (c *ConsumoController) CalcularCostoActual(gctx *gin.Context) {
 	gctx.JSON(http.StatusOK, types.ApiResponse{
 		Success: true,
 		Data:    resultado,
+	})
+}
+
+// ObtenerConsumoActual devuelve el consumo en tiempo real del cliente
+// basado en la última lectura de sus dispositivos
+func (c *ConsumoController) ObtenerConsumoActual(gctx *gin.Context) {
+	clienteID := gctx.Param("clienteId")
+	if clienteID == "" {
+		gctx.Error(types.ThrowPower("Cliente ID requerido"))
+		return
+	}
+
+	if c.dispositivoFacade == nil {
+		gctx.JSON(http.StatusOK, types.ApiResponse{
+			Success: true,
+			Data: gin.H{
+				"energia":        0,
+				"costo":          0,
+				"potenciaActiva": 0,
+			},
+		})
+		return
+	}
+
+	dispositivos, err := c.dispositivoFacade.ObtenerPorCliente(gctx.Request.Context(), clienteID)
+	if err != nil {
+		gctx.Error(err)
+		return
+	}
+
+	energia := 0.0
+	costo := 0.0
+	potencia := 0.0
+
+	for _, d := range dispositivos {
+		if d.UltimaLectura != nil {
+			energia += d.UltimaLectura.Energy
+			costo += d.UltimaLectura.Cost
+			potencia += d.UltimaLectura.ActivePower
+		}
+	}
+
+	gctx.JSON(http.StatusOK, types.ApiResponse{
+		Success: true,
+		Data: gin.H{
+			"energia":        energia,
+			"costo":          costo,
+			"potenciaActiva": potencia,
+		},
 	})
 }
