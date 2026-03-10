@@ -2,6 +2,7 @@ package controllers
 
 import (
 	"context"
+	"electric-backend/api/v1/recipe"
 	"electric-backend/config"
 	"electric-backend/domain/facades"
 	"electric-backend/domain/services"
@@ -302,16 +303,22 @@ func (ctrl *DashboardClienteController) ObtenerMiDispositivo(gctx *gin.Context) 
 
 func (ctrl *DashboardClienteController) ActualizarPerfil(gctx *gin.Context) {
 	userID := gctx.Request.Context().Value(types.ContextKeyUserID).(string)
-	_ = userID
 
-	var datos map[string]interface{}
-	if err := gctx.ShouldBindJSON(&datos); err != nil {
+	var r recipe.ActualizarClienteRecipe
+	if err := gctx.ShouldBindJSON(&r); err != nil {
 		gctx.Error(types.ThrowRecipe("Datos inválidos", ""))
+		return
+	}
+
+	cliente, err := ctrl.clienteFacade.Actualizar(gctx.Request.Context(), userID, &r)
+	if err != nil {
+		gctx.Error(err)
 		return
 	}
 
 	gctx.JSON(http.StatusOK, types.ApiResponse{
 		Success: true,
+		Data:    cliente,
 		Message: "Perfil actualizado correctamente",
 	})
 }
