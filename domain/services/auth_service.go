@@ -306,8 +306,11 @@ func (s *AuthService) calcularDigitoVerificador(numero int) string {
 	return fmt.Sprintf("%d", dv)
 }
 
+// CRIT-06: Generar password temporal criptográficamente seguro
 func (s *AuthService) generarPasswordTemporal() string {
-	return "Temp" + time.Now().Format("0601021504")
+	bytes := make([]byte, 16)
+	rand.Read(bytes)
+	return hex.EncodeToString(bytes)
 }
 
 // Convertir empresa a cliente para respuesta uniforme
@@ -327,12 +330,13 @@ func (s *AuthService) empresaToCliente(empresa *models.EmpresaModel) *models.Cli
 }
 
 func (s *AuthService) generateTokenEmpresa(empresa *models.EmpresaModel) (string, error) {
+	// MED-01: Reducir expiración de JWT a 30 minutos (access token)
 	claims := jwt.MapClaims{
 		"userId":    empresa.ID,
 		"userRole":  empresa.Role,
 		"userType":  "empresa",
 		"empresaId": empresa.ID,
-		"exp":       time.Now().Add(24 * time.Hour).Unix(),
+		"exp":       time.Now().Add(30 * time.Minute).Unix(),
 	}
 
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
@@ -340,12 +344,13 @@ func (s *AuthService) generateTokenEmpresa(empresa *models.EmpresaModel) (string
 }
 
 func (s *AuthService) generateTokenCliente(cliente *models.ClienteModel) (string, error) {
+	// MED-01: Reducir expiración de JWT a 30 minutos (access token)
 	claims := jwt.MapClaims{
 		"userId":    cliente.ID,
 		"userRole":  cliente.Role,
 		"userType":  "cliente", // Tipo cliente
 		"empresaId": cliente.EmpresaID,
-		"exp":       time.Now().Add(24 * time.Hour).Unix(),
+		"exp":       time.Now().Add(30 * time.Minute).Unix(),
 	}
 
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
@@ -409,7 +414,7 @@ func (s *AuthService) generateTokenUsuarioEmpresa(usuario *models.UsuarioEmpresa
 		"userRole":  usuario.Role,
 		"userType":  "usuario_empresa",
 		"empresaId": usuario.EmpresaID,
-		"exp":       time.Now().Add(24 * time.Hour).Unix(),
+		"exp":       time.Now().Add(30 * time.Minute).Unix(),
 	}
 
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)

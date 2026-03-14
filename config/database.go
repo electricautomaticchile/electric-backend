@@ -2,6 +2,7 @@ package config
 
 import (
 	"context"
+	"crypto/tls"
 	"fmt"
 	"log"
 	"time"
@@ -17,8 +18,13 @@ func ConnectDatabase(mongoURI string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	clientOptions := options.Client().ApplyURI(mongoURI)
-	
+	// HIGH-06: Configurar TLS explícito y timeouts adecuados
+	clientOptions := options.Client().
+		ApplyURI(mongoURI).
+		SetTLSConfig(&tls.Config{MinVersion: tls.VersionTLS12}).
+		SetServerSelectionTimeout(5 * time.Second).
+		SetConnectTimeout(10 * time.Second)
+
 	client, err := mongo.Connect(ctx, clientOptions)
 	if err != nil {
 		return fmt.Errorf("error conectando a MongoDB: %w", err)

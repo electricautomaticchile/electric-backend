@@ -9,3 +9,12 @@ run:
   command: ./electric-backend-server
   network:
     port: 4000
+  env:
+    - name: GIN_MODE
+      value: release
+  healthcheck:
+    path: /health
+    interval: 10
+    timeout: 5
+    healthy_threshold: 2
+    unhealthy_threshold: 3

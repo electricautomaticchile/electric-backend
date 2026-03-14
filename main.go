@@ -82,6 +82,11 @@ func main() {
 	router.Use(gin.Recovery())
 
 	router.Use(middleware.CORSMiddleware())
+	// HIGH-07: Limitar tamaño de request body a 10MB
+	router.Use(func(c *gin.Context) {
+		c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, 10<<20)
+		c.Next()
+	})
 	router.Use(middleware.CompressionMiddleware())
 	router.Use(middleware.AuditMiddleware(auditLogService))
 	router.Use(middleware.ErrorHandler())
@@ -137,6 +142,10 @@ func main() {
 		"POST:/api/imagenes-perfil/upload": 10,
 		"GET:/api/imagenes-perfil/:id":     100,
 		"DELETE:/api/imagenes-perfil/:id":  10,
+
+		// MED-07: Rate limiting para rutas IoT
+		"POST:/api/iot/lectura":           60,
+		"POST:/api/iot/comando-ejecutado": 30,
 	}
 
 	router.Use(middleware.EndpointRateLimitMiddleware(rateLimits))
@@ -160,7 +169,15 @@ func main() {
 		log.Printf("ℹ️ Arduino deshabilitado. Para habilitar: ARDUINO_ENABLED=true")
 	}
 
+	// HIGH-05: Health check público solo retorna status OK
 	router.GET("/health", func(c *gin.Context) {
+		c.JSON(http.StatusOK, gin.H{
+			"status": "OK",
+		})
+	})
+
+	// Health check detallado protegido por auth
+	router.GET("/api/admin/health", middleware.AuthMiddleware(), middleware.RequireRole("empresa", "admin"), func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{
 			"status":      "OK",
 			"message":     "API Electricautomaticchile funcionando correctamente",
@@ -283,8 +300,10 @@ func main() {
 			setupImagenPerfilRoutes(api, imagenPerfilController)
 		}
 
+		// HIGH-03: Aplicar CSRF middleware en rutas sensibles
 		usuariosEmpresa := api.Group("/usuarios-empresa")
 		usuariosEmpresa.Use(middleware.AuthMiddleware())
+		usuariosEmpresa.Use(middleware.CSRFMiddleware())
 		{
 			usuariosEmpresa.GET("", usuarioEmpresaController.ObtenerTodos)
 			usuariosEmpresa.GET("/:id", usuarioEmpresaController.ObtenerPorID)
@@ -322,8 +341,9 @@ func main() {
 		setupTarifaRoutes(api, tarifaController)
 		setupConsumoRoutes(api, consumoController)
 
-		// Rutas IoT — recibe datos desde AWS IoT Core Rules Engine
+		// CRIT-02: Rutas IoT con autenticación por API Key
 		iot := api.Group("/iot")
+		iot.Use(middleware.IoTAPIKeyMiddleware())
 		{
 			iot.POST("/lectura", dispositivoController.RecibirLecturaIoT)
 			iot.POST("/comando-ejecutado", dispositivoController.ComandoEjecutado)
@@ -365,11 +385,20 @@ func main() {
 
 	log.Println("🛑 Apagando servidor...")
 
+	// LOW-03: Graceful shutdown con timeout de 30 segundos
+	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer shutdownCancel()
+
 	notificacionesScheduler.Detener()
 	log.Println("✅ Scheduler de notificaciones detenido")
 
 	arduinoBridge.Disconnect()
 	log.Println("✅ Arduino desconectado")
+
+	if err := srv.Shutdown(shutdownCtx); err != nil {
+		log.Printf("⚠️ Error en shutdown del servidor: %v", err)
+	}
+	log.Println("✅ Servidor apagado correctamente")
 }
 
 // Funciones temporales de rutas (mover a controladores después)

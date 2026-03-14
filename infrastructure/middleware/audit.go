@@ -51,7 +51,7 @@ func AuditMiddleware(auditService *services.AuditLogService) gin.HandlerFunc {
 		if c.Request.Body != nil && c.Request.Method != "GET" {
 			bodyBytes, _ := io.ReadAll(c.Request.Body)
 			c.Request.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
-			
+
 			if len(bodyBytes) > 0 && len(bodyBytes) < 10000 {
 				json.Unmarshal(bodyBytes, &requestBody)
 				sanitizeRequestBody(requestBody)
@@ -71,6 +71,8 @@ func AuditMiddleware(auditService *services.AuditLogService) gin.HandlerFunc {
 		var responseBody map[string]interface{}
 		if blw.body.Len() > 0 && blw.body.Len() < 10000 {
 			json.Unmarshal(blw.body.Bytes(), &responseBody)
+			// MED-06: Redactar campos sensibles del response body
+			sanitizeResponseBody(responseBody)
 		}
 
 		success := c.Writer.Status() >= 200 && c.Writer.Status() < 400
@@ -131,11 +133,31 @@ func shouldSkipAudit(path string) bool {
 }
 
 func sanitizeRequestBody(body map[string]interface{}) {
-	sensitiveFields := []string{"password", "passwordTemporal", "token", "secret"}
-	
+	sensitiveFields := []string{"password", "passwordTemporal", "token", "secret", "passwordActual", "passwordNuevo"}
+
 	for _, field := range sensitiveFields {
 		if _, exists := body[field]; exists {
 			body[field] = "***REDACTED***"
+		}
+	}
+}
+
+// MED-06: Redactar campos sensibles del response body
+func sanitizeResponseBody(body map[string]interface{}) {
+	if body == nil {
+		return
+	}
+	sensitive := []string{"password", "token", "refreshToken", "rut", "correo", "telefono", "direccion"}
+	for _, field := range sensitive {
+		if _, exists := body[field]; exists {
+			body[field] = "***REDACTED***"
+		}
+	}
+	if data, ok := body["data"].(map[string]interface{}); ok {
+		for _, field := range sensitive {
+			if _, exists := data[field]; exists {
+				data[field] = "***REDACTED***"
+			}
 		}
 	}
 }
@@ -172,7 +194,7 @@ func determineAction(method string, path string) string {
 
 func determineResource(path string) string {
 	parts := strings.Split(strings.Trim(path, "/"), "/")
-	
+
 	if len(parts) >= 2 {
 		resource := parts[1]
 		resource = strings.TrimSuffix(resource, "s")

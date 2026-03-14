@@ -32,10 +32,10 @@ func ErrorHandler() gin.HandlerFunc {
 			}
 
 			log.Printf("Error no manejado: %v", err)
+			// HIGH-01: No exponer errores internos en producción
 			c.JSON(http.StatusInternalServerError, types.ApiResponse{
 				Success: false,
 				Error:   "Error interno del servidor",
-				Errors:  []string{err.Error()},
 			})
 		}
 	}

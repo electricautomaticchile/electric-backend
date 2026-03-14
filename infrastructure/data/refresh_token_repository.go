@@ -24,7 +24,8 @@ func NewRefreshTokenRepository() *RefreshTokenRepository {
 	}
 }
 
-func (r *RefreshTokenRepository) Create(ctx context.Context, userID, userType string) (string, error) {
+// MED-08: Create con fingerprint de dispositivo
+func (r *RefreshTokenRepository) Create(ctx context.Context, userID, userType string, fingerprints ...string) (string, error) {
 	tokenBytes := make([]byte, 32)
 	if _, err := rand.Read(tokenBytes); err != nil {
 		return "", err
@@ -36,13 +37,19 @@ func (r *RefreshTokenRepository) Create(ctx context.Context, userID, userType st
 		return "", types.ThrowData("ID inválido")
 	}
 
+	fp := ""
+	if len(fingerprints) > 0 {
+		fp = fingerprints[0]
+	}
+
 	entity := &entities.RefreshTokenEntity{
-		Token:     token,
-		UserID:    userObjectID,
-		UserType:  userType,
-		ExpiresAt: time.Now().Add(30 * 24 * time.Hour),
-		CreatedAt: time.Now(),
-		Revoked:   false,
+		Token:       token,
+		UserID:      userObjectID,
+		UserType:    userType,
+		Fingerprint: fp,
+		ExpiresAt:   time.Now().Add(30 * 24 * time.Hour),
+		CreatedAt:   time.Now(),
+		Revoked:     false,
 	}
 
 	_, err = r.collection.InsertOne(ctx, entity)
@@ -56,8 +63,8 @@ func (r *RefreshTokenRepository) Create(ctx context.Context, userID, userType st
 func (r *RefreshTokenRepository) Validate(ctx context.Context, token string) (*entities.RefreshTokenEntity, error) {
 	var entity entities.RefreshTokenEntity
 	err := r.collection.FindOne(ctx, bson.M{
-		"token":   token,
-		"revoked": false,
+		"token":     token,
+		"revoked":   false,
 		"expiresAt": bson.M{"$gt": time.Now()},
 	}).Decode(&entity)
 

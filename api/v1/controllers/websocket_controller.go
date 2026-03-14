@@ -12,10 +12,23 @@ import (
 	gorillaws "github.com/gorilla/websocket"
 )
 
+// CRIT-03: Validar origen en WebSocket para prevenir CSWSH
 var upgrader = gorillaws.Upgrader{
 	ReadBufferSize:  1024,
 	WriteBufferSize: 1024,
-	CheckOrigin:     func(r *http.Request) bool { return true },
+	CheckOrigin: func(r *http.Request) bool {
+		origin := r.Header.Get("Origin")
+		if origin == "" {
+			return true // Permitir conexiones sin Origin (apps nativas)
+		}
+		allowedOrigins := strings.Split(config.AppConfig.CORSOrigins, ",")
+		for _, allowed := range allowedOrigins {
+			if strings.TrimSpace(allowed) == origin {
+				return true
+			}
+		}
+		return false
+	},
 }
 
 type wsClaims struct {

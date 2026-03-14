@@ -27,7 +27,7 @@ func CORSMiddleware() gin.HandlerFunc {
 		AllowHeaders:     []string{"Origin", "Content-Type", "Accept", "Authorization", "X-Requested-With", "X-CSRF-Token"},
 		ExposeHeaders:    []string{"Content-Length", "Set-Cookie"},
 		AllowCredentials: true,
-		MaxAge:           12 * 3600,
+		MaxAge:           2 * 3600, // MED-04: Reducido a 2 horas
 	}
 
 	corsFn := cors.New(corsConfig)
