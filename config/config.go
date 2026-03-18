@@ -3,6 +3,7 @@ package config
 import (
 	"log"
 	"os"
+	"strings"
 
 	"github.com/joho/godotenv"
 )
@@ -47,11 +48,23 @@ type Config struct {
 var AppConfig *Config
 
 // LoadConfig carga la configuración desde variables de entorno.
-// En producción, App Runner inyecta los secretos desde Secrets Manager como env vars via ARN.
+// En producción (ECS Fargate), el secreto completo llega como JSON en la variable ENVIRONMENT.
 // En desarrollo local se usa el archivo .env.
 func LoadConfig() *Config {
 	if err := godotenv.Load(); err != nil {
 		log.Println("No se encontró archivo .env, usando variables de entorno del sistema")
+	}
+
+	// ECS inyecta el secreto de Secrets Manager como JSON en la variable ENVIRONMENT.
+	// Lo parseamos y seteamos cada clave como env var individual.
+	if raw := os.Getenv("ENVIRONMENT"); raw != "" {
+		lines := strings.Split(raw, "\n")
+		for _, line := range lines {
+			parts := strings.SplitN(line, "=", 2)
+			if len(parts) == 2 && parts[0] != "" {
+				os.Setenv(parts[0], parts[1])
+			}
+		}
 	}
 
 	AppConfig = &Config{
