@@ -1,9 +1,14 @@
 package config
 
 import (
+	"context"
+	"encoding/json"
 	"log"
 	"os"
 
+	"github.com/aws/aws-sdk-go-v2/aws"
+	awsconfig "github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/service/secretsmanager"
 	"github.com/joho/godotenv"
 )
 
@@ -48,22 +53,65 @@ type Config struct {
 
 var AppConfig *Config
 
-// LoadConfig carga la configuración desde variables de entorno
+// loadSecretsFromAWS obtiene secretos desde AWS Secrets Manager (solo en producción).
+// Usa el IAM Role del App Runner — no requiere credenciales explícitas.
+func loadSecretsFromAWS() map[string]string {
+	if os.Getenv("NODE_ENV") != "production" {
+		return nil
+	}
+
+	cfg, err := awsconfig.LoadDefaultConfig(context.Background())
+	if err != nil {
+		log.Printf("⚠️ No se pudo cargar config AWS: %v", err)
+		return nil
+	}
+
+	svc := secretsmanager.NewFromConfig(cfg)
+	result, err := svc.GetSecretValue(context.Background(), &secretsmanager.GetSecretValueInput{
+		SecretId: aws.String("electric-backend/production"),
+	})
+	if err != nil {
+		log.Printf("⚠️ No se pudo leer Secrets Manager: %v", err)
+		return nil
+	}
+
+	var secrets map[string]string
+	if err := json.Unmarshal([]byte(*result.SecretString), &secrets); err != nil {
+		log.Printf("⚠️ Error parseando secretos: %v", err)
+		return nil
+	}
+
+	log.Println("✅ Secretos cargados desde AWS Secrets Manager")
+	return secrets
+}
+
+// LoadConfig carga la configuración desde Secrets Manager (producción) o variables de entorno (desarrollo)
 func LoadConfig() *Config {
-	// Cargar .env si existe
+	// Cargar .env si existe (desarrollo local)
 	if err := godotenv.Load(); err != nil {
 		log.Println("No se encontró archivo .env, usando variables de entorno del sistema")
 	}
 
+	// En producción, los secretos vienen de Secrets Manager y sobreescriben las env vars
+	secrets := loadSecretsFromAWS()
+	getSecret := func(key, envKey, defaultValue string) string {
+		if secrets != nil {
+			if val, ok := secrets[key]; ok && val != "" {
+				return val
+			}
+		}
+		return getEnv(envKey, defaultValue)
+	}
+
 	AppConfig = &Config{
 		Port:        getEnv("PORT", "4000"),
-		MongoURI:    getEnv("MONGODB_URI", "mongodb://localhost:27017/electricautomaticchile"),
-		JWTSecret:   getEnv("JWT_SECRET", ""), // CRIT-04: Sin fallback inseguro, requiere configuración explícita
+		MongoURI:    getSecret("MONGODB_URI", "MONGODB_URI", "mongodb://localhost:27017/electricautomaticchile"),
+		JWTSecret:   getSecret("JWT_SECRET", "JWT_SECRET", ""),
 		Environment: getEnv("NODE_ENV", "development"),
 
-		RedisHost:     getEnv("REDIS_HOST", "localhost"),
+		RedisHost:     getSecret("REDIS_HOST", "REDIS_HOST", "localhost"),
 		RedisPort:     getEnv("REDIS_PORT", "6379"),
-		RedisPassword: getEnv("REDIS_PASSWORD", ""),
+		RedisPassword: getSecret("REDIS_PASSWORD", "REDIS_PASSWORD", ""),
 		RedisDB:       getEnv("REDIS_DB", "0"),
 
 		CORSOrigins: getEnv("CORS_ORIGINS", "http://localhost:3000"),
@@ -74,17 +122,16 @@ func LoadConfig() *Config {
 		S3BucketImages:     getEnv("AWS_S3_IMAGES_BUCKET_NAME", ""),
 		S3BucketDocs:       getEnv("AWS_S3_BUCKET_NAME", ""),
 
-		ResendAPIKey: getEnv("RESEND_API_KEY", ""),
+		ResendAPIKey: getSecret("RESEND_API_KEY", "RESEND_API_KEY", ""),
 		EmailFrom:    getEnv("EMAIL_FROM", "noreply@electricautomaticchile.com"),
 
-		InfobipAPIKey:  getEnv("INFOBIP_API_KEY", ""),
+		InfobipAPIKey:  getSecret("INFOBIP_API_KEY", "INFOBIP_API_KEY", ""),
 		InfobipBaseURL: getEnv("INFOBIP_BASE_URL", "https://api.infobip.com"),
 		SMSFromNumber:  getEnv("SMS_FROM_NUMBER", "ElectricCL"),
 
 		WebSocketAPIURL: getEnv("WEBSOCKET_API_URL", "http://localhost:5000"),
 
-		// IoT
-		IoTAPIKey: getEnv("IOT_API_KEY", ""),
+		IoTAPIKey: getSecret("IOT_API_KEY", "IOT_API_KEY", ""),
 	}
 
 	// Validar que JWT_SECRET esté configurado y sea suficientemente largo
