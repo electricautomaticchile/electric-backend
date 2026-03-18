@@ -60,9 +60,12 @@ func LoadConfig() *Config {
 	if raw := os.Getenv("ENVIRONMENT"); raw != "" {
 		lines := strings.Split(raw, "\n")
 		for _, line := range lines {
-			parts := strings.SplitN(line, "=", 2)
+			if !strings.Contains(line, "=") {
+				continue
+			}
+			parts := strings.SplitN(strings.TrimSpace(line), "=", 2)
 			if len(parts) == 2 && parts[0] != "" {
-				os.Setenv(parts[0], parts[1])
+				os.Setenv(strings.TrimSpace(parts[0]), strings.TrimSpace(parts[1]))
 			}
 		}
 	}
