@@ -14,7 +14,6 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	awsconfig "github.com/aws/aws-sdk-go-v2/config"
-	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/google/uuid"
 )
@@ -25,17 +24,10 @@ type S3Service struct {
 }
 
 func NewS3Service(cfg *config.Config) (*S3Service, error) {
-	if cfg.AWSAccessKeyID == "" || cfg.AWSSecretAccessKey == "" {
-		return nil, fmt.Errorf("credenciales AWS no configuradas")
-	}
-
+	// Usa el IAM Role del App Runner automáticamente (sin credenciales estáticas).
+	// En desarrollo local, el SDK busca credenciales en ~/.aws/credentials o env vars AWS_*.
 	awsCfg, err := awsconfig.LoadDefaultConfig(context.TODO(),
 		awsconfig.WithRegion(cfg.AWSRegion),
-		awsconfig.WithCredentialsProvider(credentials.NewStaticCredentialsProvider(
-			cfg.AWSAccessKeyID,
-			cfg.AWSSecretAccessKey,
-			"",
-		)),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("error cargando configuración AWS: %w", err)
@@ -52,7 +44,7 @@ func NewS3Service(cfg *config.Config) (*S3Service, error) {
 func (s *S3Service) SubirImagenPerfil(file multipart.File, header *multipart.FileHeader, tipoUsuario string, userID string) (string, error) {
 	ext := strings.ToLower(filepath.Ext(header.Filename))
 	allowedExts := map[string]bool{".jpg": true, ".jpeg": true, ".png": true, ".webp": true}
-	
+
 	if !allowedExts[ext] {
 		return "", fmt.Errorf("tipo de archivo no permitido: %s", ext)
 	}
@@ -83,9 +75,9 @@ func (s *S3Service) SubirImagenPerfil(file multipart.File, header *multipart.Fil
 		return "", fmt.Errorf("error subiendo archivo a S3: %w", err)
 	}
 
-	imageURL := fmt.Sprintf("https://%s.s3.%s.amazonaws.com/%s", 
-		s.config.S3BucketImages, 
-		s.config.AWSRegion, 
+	imageURL := fmt.Sprintf("https://%s.s3.%s.amazonaws.com/%s",
+		s.config.S3BucketImages,
+		s.config.AWSRegion,
 		fileName,
 	)
 

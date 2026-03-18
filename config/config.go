@@ -29,11 +29,9 @@ type Config struct {
 	CORSOrigins string
 
 	// AWS S3
-	AWSRegion          string
-	AWSAccessKeyID     string
-	AWSSecretAccessKey string
-	S3BucketImages     string
-	S3BucketDocs       string
+	AWSRegion      string
+	S3BucketImages string
+	S3BucketDocs   string
 
 	// Email
 	ResendAPIKey string
@@ -116,11 +114,9 @@ func LoadConfig() *Config {
 
 		CORSOrigins: getEnv("CORS_ORIGINS", "http://localhost:3000"),
 
-		AWSRegion:          getEnv("AWS_REGION", "us-east-1"),
-		AWSAccessKeyID:     getEnv("AWS_ACCESS_KEY_ID", ""),
-		AWSSecretAccessKey: getEnv("AWS_SECRET_ACCESS_KEY", ""),
-		S3BucketImages:     getEnv("AWS_S3_IMAGES_BUCKET_NAME", ""),
-		S3BucketDocs:       getEnv("AWS_S3_BUCKET_NAME", ""),
+		AWSRegion:      getEnv("AWS_REGION", "us-east-1"),
+		S3BucketImages: getEnv("AWS_S3_IMAGES_BUCKET_NAME", ""),
+		S3BucketDocs:   getEnv("AWS_S3_BUCKET_NAME", ""),
 
 		ResendAPIKey: getSecret("RESEND_API_KEY", "RESEND_API_KEY", ""),
 		EmailFrom:    getEnv("EMAIL_FROM", "noreply@electricautomaticchile.com"),
