@@ -13,7 +13,6 @@ import (
 	"electric-backend/config"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
-	v4 "github.com/aws/aws-sdk-go-v2/aws/signer/v4"
 	awsconfig "github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/google/uuid"
@@ -72,7 +71,7 @@ func (s *S3Service) SubirImagenPerfil(file multipart.File, header *multipart.Fil
 		Body:          bytes.NewReader(fileBytes),
 		ContentType:   aws.String(contentType),
 		ContentLength: int64(len(fileBytes)),
-	}, s3.WithAPIOptions(v4.SwapComputePayloadSHA256ForUnsignedPayloadMiddleware))
+	})
 	if err != nil {
 		return "", fmt.Errorf("error subiendo archivo a S3: %w", err)
 	}
