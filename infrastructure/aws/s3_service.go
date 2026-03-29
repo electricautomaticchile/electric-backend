@@ -75,11 +75,7 @@ func (s *S3Service) SubirImagenPerfil(file multipart.File, header *multipart.Fil
 		return "", fmt.Errorf("error subiendo archivo a S3: %w", err)
 	}
 
-	imageURL := fmt.Sprintf("https://%s.s3.%s.amazonaws.com/%s",
-		s.config.S3BucketImages,
-		s.config.AWSRegion,
-		fileName,
-	)
+	imageURL := fmt.Sprintf("%s/%s", s.config.S3PublicURL, fileName)
 
 	return imageURL, nil
 }
@@ -122,6 +118,11 @@ func (s *S3Service) GenerarURLFirmada(key string, duracion time.Duration) (strin
 }
 
 func (s *S3Service) extractKeyFromURL(url string) string {
+	// Soporta tanto CloudFront (https://dxxx.cloudfront.net/key) como S3 directo
+	if s.config.S3PublicURL != "" && strings.HasPrefix(url, s.config.S3PublicURL) {
+		return strings.TrimPrefix(url, s.config.S3PublicURL+"/")
+	}
+	// Fallback para URLs S3 directas
 	parts := strings.Split(url, ".amazonaws.com/")
 	if len(parts) != 2 {
 		return ""

@@ -28,6 +28,7 @@ type Config struct {
 	AWSRegion      string
 	S3BucketImages string
 	S3BucketDocs   string
+	S3PublicURL    string
 
 	// Email
 	ResendAPIKey string
@@ -86,6 +87,7 @@ func LoadConfig() *Config {
 		AWSRegion:      getEnv("AWS_REGION", "us-east-1"),
 		S3BucketImages: getEnv("AWS_S3_IMAGES_BUCKET_NAME", ""),
 		S3BucketDocs:   getEnv("AWS_S3_BUCKET_NAME", ""),
+		S3PublicURL:    getEnv("S3_PUBLIC_URL", ""),
 
 		ResendAPIKey: getEnv("RESEND_API_KEY", ""),
 		EmailFrom:    getEnv("EMAIL_FROM", "noreply@electricautomaticchile.com"),
