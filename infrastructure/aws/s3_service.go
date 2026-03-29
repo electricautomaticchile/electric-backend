@@ -14,18 +14,18 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	awsconfig "github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/feature/s3/manager"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/google/uuid"
 )
 
 type S3Service struct {
-	client *s3.Client
-	config *config.Config
+	client   *s3.Client
+	uploader *manager.Uploader
+	config   *config.Config
 }
 
 func NewS3Service(cfg *config.Config) (*S3Service, error) {
-	// Usa el IAM Role del App Runner automáticamente (sin credenciales estáticas).
-	// En desarrollo local, el SDK busca credenciales en ~/.aws/credentials o env vars AWS_*.
 	awsCfg, err := awsconfig.LoadDefaultConfig(context.TODO(),
 		awsconfig.WithRegion(cfg.AWSRegion),
 	)
@@ -36,8 +36,9 @@ func NewS3Service(cfg *config.Config) (*S3Service, error) {
 	client := s3.NewFromConfig(awsCfg)
 
 	return &S3Service{
-		client: client,
-		config: cfg,
+		client:   client,
+		uploader: manager.NewUploader(client),
+		config:   cfg,
 	}, nil
 }
 
@@ -65,20 +66,17 @@ func (s *S3Service) SubirImagenPerfil(file multipart.File, header *multipart.Fil
 		contentType = "application/octet-stream"
 	}
 
-	_, err = s.client.PutObject(context.TODO(), &s3.PutObjectInput{
-		Bucket:        aws.String(s.config.S3BucketImages),
-		Key:           aws.String(fileName),
-		Body:          bytes.NewReader(fileBytes),
-		ContentType:   aws.String(contentType),
-		ContentLength: int64(len(fileBytes)),
+	_, err = s.uploader.Upload(context.TODO(), &s3.PutObjectInput{
+		Bucket:      aws.String(s.config.S3BucketImages),
+		Key:         aws.String(fileName),
+		Body:        bytes.NewReader(fileBytes),
+		ContentType: aws.String(contentType),
 	})
 	if err != nil {
 		return "", fmt.Errorf("error subiendo archivo a S3: %w", err)
 	}
 
-	imageURL := fmt.Sprintf("%s/%s", s.config.S3PublicURL, fileName)
-
-	return imageURL, nil
+	return fmt.Sprintf("%s/%s", s.config.S3PublicURL, fileName), nil
 }
 
 func (s *S3Service) EliminarImagen(imageURL string) error {
