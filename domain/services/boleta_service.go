@@ -17,10 +17,10 @@ import (
 type BoletaService struct {
 	boletaRepo   ports.PortBoleta
 	clienteRepo  ports.PortCliente
-	emailService *email.ResendService
+	emailService email.EmailService
 }
 
-func NewBoletaService(boletaRepo ports.PortBoleta, clienteRepo ports.PortCliente, emailService *email.ResendService) *BoletaService {
+func NewBoletaService(boletaRepo ports.PortBoleta, clienteRepo ports.PortCliente, emailService email.EmailService) *BoletaService {
 	return &BoletaService{
 		boletaRepo:   boletaRepo,
 		clienteRepo:  clienteRepo,

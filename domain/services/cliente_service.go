@@ -17,10 +17,10 @@ import (
 
 type ClienteService struct {
 	clienteRepo  ports.PortCliente
-	emailService *email.ResendService
+	emailService email.EmailService
 }
 
-func NewClienteService(clienteRepo ports.PortCliente, emailService *email.ResendService) *ClienteService {
+func NewClienteService(clienteRepo ports.PortCliente, emailService email.EmailService) *ClienteService {
 	return &ClienteService{
 		clienteRepo:  clienteRepo,
 		emailService: emailService,
@@ -116,7 +116,7 @@ func (s *ClienteService) calcularDigitoVerificador(numero int) string {
 	suma := 0
 	multiplicador := 2
 	numeroStr := fmt.Sprintf("%d", numero)
-	
+
 	for i := len(numeroStr) - 1; i >= 0; i-- {
 		digito := int(numeroStr[i] - '0')
 		suma += digito * multiplicador
@@ -125,10 +125,10 @@ func (s *ClienteService) calcularDigitoVerificador(numero int) string {
 			multiplicador = 2
 		}
 	}
-	
+
 	resto := suma % 11
 	dv := 11 - resto
-	
+
 	if dv == 11 {
 		return "0"
 	} else if dv == 10 {

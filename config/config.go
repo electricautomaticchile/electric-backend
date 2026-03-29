@@ -31,8 +31,7 @@ type Config struct {
 	S3PublicURL    string
 
 	// Email
-	ResendAPIKey string
-	EmailFrom    string
+	EmailFrom string
 
 	// SMS Infobip
 	InfobipAPIKey  string
@@ -89,8 +88,7 @@ func LoadConfig() *Config {
 		S3BucketDocs:   getEnv("AWS_S3_BUCKET_NAME", ""),
 		S3PublicURL:    getEnv("S3_PUBLIC_URL", ""),
 
-		ResendAPIKey: getEnv("RESEND_API_KEY", ""),
-		EmailFrom:    getEnv("EMAIL_FROM", "noreply@electricautomaticchile.com"),
+		EmailFrom: getEnv("EMAIL_FROM", "noreply@electricautomaticchile.com"),
 
 		InfobipAPIKey:  getEnv("INFOBIP_API_KEY", ""),
 		InfobipBaseURL: getEnv("INFOBIP_BASE_URL", "https://api.infobip.com"),
@@ -106,6 +104,9 @@ func LoadConfig() *Config {
 	}
 	if len(AppConfig.JWTSecret) < 32 {
 		log.Fatal("❌ JWT_SECRET debe tener al menos 32 caracteres.")
+	}
+	if AppConfig.S3PublicURL == "" {
+		log.Fatal("❌ S3_PUBLIC_URL es requerido. Configura la URL de CloudFront.")
 	}
 
 	return AppConfig

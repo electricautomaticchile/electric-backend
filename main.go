@@ -19,15 +19,26 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"runtime"
 	"syscall"
 	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/gin-gonic/gin/binding"
 	"github.com/go-playground/validator/v10"
+	"gopkg.in/natefinch/lumberjack.v2"
 )
 
 func main() {
+	// Log rotation con lumberjack
+	log.SetOutput(&lumberjack.Logger{
+		Filename:   "./logs/electric-backend.log",
+		MaxSize:    50,
+		MaxBackups: 7,
+		MaxAge:     30,
+		Compress:   true,
+	})
+
 	config.LoadConfig()
 
 	if config.AppConfig.Environment == "production" {
@@ -61,15 +72,8 @@ func main() {
 		log.Printf("⚠️ Error creando índices: %v", err)
 	}
 
-	if err := config.ConnectRedis(
-		config.AppConfig.RedisHost,
-		config.AppConfig.RedisPort,
-		config.AppConfig.RedisPassword,
-		config.AppConfig.RedisDB,
-	); err != nil {
-		log.Printf("⚠️ Redis no disponible: %v", err)
-	}
-	defer config.DisconnectRedis()
+	// Redis eliminado — se usa ElastiCache o se maneja sin caché local
+	// if err := config.ConnectRedis(...); err != nil { ... }
 
 	auditLogRepo := data.NewAuditLogRepository()
 	auditLogService := services.NewAuditLogService(auditLogRepo)
@@ -169,10 +173,20 @@ func main() {
 		log.Printf("ℹ️ Arduino deshabilitado. Para habilitar: ARDUINO_ENABLED=true")
 	}
 
-	// HIGH-05: Health check público solo retorna status OK
+	// HIGH-05: Health check público con métricas de memoria y CPU
 	router.GET("/health", func(c *gin.Context) {
+		var memStats runtime.MemStats
+		runtime.ReadMemStats(&memStats)
 		c.JSON(http.StatusOK, gin.H{
-			"status": "OK",
+			"status":    "ok",
+			"timestamp": time.Now().UTC(),
+			"memory": gin.H{
+				"alloc_mb":       memStats.Alloc / 1024 / 1024,
+				"total_alloc_mb": memStats.TotalAlloc / 1024 / 1024,
+				"sys_mb":         memStats.Sys / 1024 / 1024,
+				"gc_cycles":      memStats.NumGC,
+			},
+			"goroutines": runtime.NumGoroutine(),
 		})
 	})
 
@@ -188,7 +202,7 @@ func main() {
 				"connected": config.MongoDB != nil,
 			},
 			"redis": gin.H{
-				"connected": config.RedisClient != nil,
+				"connected": false,
 			},
 			"websocket": gin.H{
 				"clients": wsHub.GetConnectedClients(),
@@ -213,7 +227,7 @@ func main() {
 	tarifaRepo := data.NewTarifaRepository()
 
 	wsNotifierService := services.NewWebSocketNotifierService(wsHub)
-	emailService := email.NewResendService()
+	emailService := email.NewSESService()
 	dashboardService := services.NewDashboardService(clienteRepo, dispositivoRepo, notificacionRepo, ticketRepo, estadisticaRepo)
 
 	s3Service, err := aws.NewS3Service(config.AppConfig)
@@ -385,8 +399,8 @@ func main() {
 
 	log.Println("🛑 Apagando servidor...")
 
-	// LOW-03: Graceful shutdown con timeout de 30 segundos
-	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 30*time.Second)
+	// LOW-03: Graceful shutdown con timeout de 45 segundos
+	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 45*time.Second)
 	defer shutdownCancel()
 
 	notificacionesScheduler.Detener()

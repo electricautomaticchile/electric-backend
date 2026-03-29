@@ -16,10 +16,10 @@ import (
 
 type UsuarioEmpresaService struct {
 	usuarioRepo  ports.PortUsuarioEmpresa
-	emailService *email.ResendService
+	emailService email.EmailService
 }
 
-func NewUsuarioEmpresaService(usuarioRepo ports.PortUsuarioEmpresa, emailService *email.ResendService) *UsuarioEmpresaService {
+func NewUsuarioEmpresaService(usuarioRepo ports.PortUsuarioEmpresa, emailService email.EmailService) *UsuarioEmpresaService {
 	return &UsuarioEmpresaService{
 		usuarioRepo:  usuarioRepo,
 		emailService: emailService,

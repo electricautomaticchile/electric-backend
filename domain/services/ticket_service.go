@@ -17,12 +17,12 @@ import (
 type TicketService struct {
 	ticketRepo       ports.PortTicket
 	notificacionRepo ports.PortNotificacion
-	emailService     *email.ResendService
+	emailService     email.EmailService
 	clienteRepo      ports.PortCliente
 	empresaRepo      ports.PortEmpresa
 }
 
-func NewTicketService(ticketRepo ports.PortTicket, notificacionRepo ports.PortNotificacion, emailService *email.ResendService, clienteRepo ports.PortCliente, empresaRepo ports.PortEmpresa) *TicketService {
+func NewTicketService(ticketRepo ports.PortTicket, notificacionRepo ports.PortNotificacion, emailService email.EmailService, clienteRepo ports.PortCliente, empresaRepo ports.PortEmpresa) *TicketService {
 	return &TicketService{
 		ticketRepo:       ticketRepo,
 		notificacionRepo: notificacionRepo,
@@ -245,7 +245,6 @@ func (s *TicketService) entityToModel(entity *entities.TicketEntity) *models.Tic
 
 	return model
 }
-
 
 func (s *TicketService) ObtenerPorCliente(ctx context.Context, clienteID string) ([]*models.TicketModel, error) {
 	tickets, err := s.ticketRepo.FindByCliente(ctx, clienteID)

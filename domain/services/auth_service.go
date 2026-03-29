@@ -27,10 +27,10 @@ type AuthService struct {
 	usuarioEmpresaRepo ports.PortUsuarioEmpresa
 	recoveryTokenRepo  ports.PortRecoveryToken
 	refreshTokenRepo   *data.RefreshTokenRepository
-	emailService       *email.ResendService
+	emailService       email.EmailService
 }
 
-func NewAuthService(empresaRepo ports.PortEmpresa, clienteRepo ports.PortCliente, usuarioEmpresaRepo ports.PortUsuarioEmpresa, recoveryTokenRepo ports.PortRecoveryToken, refreshTokenRepo *data.RefreshTokenRepository, emailService *email.ResendService) *AuthService {
+func NewAuthService(empresaRepo ports.PortEmpresa, clienteRepo ports.PortCliente, usuarioEmpresaRepo ports.PortUsuarioEmpresa, recoveryTokenRepo ports.PortRecoveryToken, refreshTokenRepo *data.RefreshTokenRepository, emailService email.EmailService) *AuthService {
 	return &AuthService{
 		empresaRepo:        empresaRepo,
 		clienteRepo:        clienteRepo,
