@@ -148,8 +148,10 @@ func main() {
 		"DELETE:/api/imagenes-perfil/:id":  10,
 
 		// MED-07: Rate limiting para rutas IoT
-		"POST:/api/iot/lectura":           60,
-		"POST:/api/iot/comando-ejecutado": 30,
+		// 250 dispositivos × 1 req/5s = 50 req/s = 3000 req/min por IP en pruebas
+		// En producción cada dispositivo tiene su propia IP (límite aplica por IP)
+		"POST:/api/iot/lectura":           3000,
+		"POST:/api/iot/comando-ejecutado": 500,
 	}
 
 	router.Use(middleware.EndpointRateLimitMiddleware(rateLimits))
