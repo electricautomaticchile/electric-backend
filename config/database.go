@@ -23,7 +23,9 @@ func ConnectDatabase(mongoURI string) error {
 		ApplyURI(mongoURI).
 		SetTLSConfig(&tls.Config{MinVersion: tls.VersionTLS12}).
 		SetServerSelectionTimeout(5 * time.Second).
-		SetConnectTimeout(10 * time.Second)
+		SetConnectTimeout(10 * time.Second).
+		SetMaxPoolSize(300).
+		SetMinPoolSize(10)
 
 	client, err := mongo.Connect(ctx, clientOptions)
 	if err != nil {
