@@ -166,15 +166,13 @@ func (s *DispositivoService) ActualizarUltimaLectura(ctx context.Context, numero
 		Timestamp:      time.Now(),
 	}
 
-	if err := s.dispositivoRepo.UpdateUltimaLectura(ctx, numeroDispositivo, lectura); err != nil {
+	dispositivo, err := s.dispositivoRepo.UpdateUltimaLectura(ctx, numeroDispositivo, lectura)
+	if err != nil {
 		return err
 	}
 
-	if s.wsNotifier != nil {
-		dispositivo, err := s.dispositivoRepo.FindByNumero(ctx, numeroDispositivo)
-		if err == nil {
-			s.wsNotifier.NotificarActualizacionDispositivo(dispositivo)
-		}
+	if s.wsNotifier != nil && dispositivo != nil {
+		s.wsNotifier.NotificarActualizacionDispositivo(dispositivo)
 	}
 
 	return nil

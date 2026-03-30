@@ -12,7 +12,7 @@ type PortDispositivo interface {
 	FindByCliente(ctx context.Context, clienteID string) ([]*entities.DispositivoEntity, error)
 	Create(ctx context.Context, dispositivo *entities.DispositivoEntity) error
 	Update(ctx context.Context, id string, dispositivo *entities.DispositivoEntity) error
-	UpdateUltimaLectura(ctx context.Context, numeroDispositivo string, lectura *entities.LecturaDispositivo) error
+	UpdateUltimaLectura(ctx context.Context, numeroDispositivo string, lectura *entities.LecturaDispositivo) (*entities.DispositivoEntity, error)
 	CambiarEstado(ctx context.Context, id string, estado string) error
 	Delete(ctx context.Context, id string) error
 }

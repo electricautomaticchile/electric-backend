@@ -57,7 +57,7 @@ func (r *DispositivoRepository) FindAll(ctx context.Context, empresaID string) (
 
 func (r *DispositivoRepository) FindAllPaginated(ctx context.Context, empresaID string, params types.PaginationParams, filters types.FilterParams) ([]*entities.DispositivoEntity, int64, error) {
 	filter := filters.BuildMongoFilter()
-	
+
 	if empresaID != "" {
 		empresaObjectID, err := primitive.ObjectIDFromHex(empresaID)
 		if err == nil {
@@ -73,7 +73,7 @@ func (r *DispositivoRepository) FindAllPaginated(ctx context.Context, empresaID 
 	opts := options.Find()
 	opts.SetSkip(int64(params.GetSkip()))
 	opts.SetLimit(int64(params.GetLimit()))
-	
+
 	if params.SortBy != "" {
 		sortOrder := 1
 		if params.SortDir == "desc" {
@@ -186,9 +186,10 @@ func (r *DispositivoRepository) Update(ctx context.Context, id string, dispositi
 	return err
 }
 
-func (r *DispositivoRepository) UpdateUltimaLectura(ctx context.Context, numeroDispositivo string, lectura *entities.LecturaDispositivo) error {
+func (r *DispositivoRepository) UpdateUltimaLectura(ctx context.Context, numeroDispositivo string, lectura *entities.LecturaDispositivo) (*entities.DispositivoEntity, error) {
 	now := time.Now()
-	_, err := r.collection.UpdateOne(
+	var updated entities.DispositivoEntity
+	err := r.collection.FindOneAndUpdate(
 		ctx,
 		bson.M{"numeroDispositivo": numeroDispositivo},
 		bson.M{
@@ -197,8 +198,12 @@ func (r *DispositivoRepository) UpdateUltimaLectura(ctx context.Context, numeroD
 				"fechaActualizacion": now,
 			},
 		},
-	)
-	return err
+		options.FindOneAndUpdate().SetReturnDocument(options.After),
+	).Decode(&updated)
+	if err != nil {
+		return nil, err
+	}
+	return &updated, nil
 }
 
 func (r *DispositivoRepository) CambiarEstado(ctx context.Context, id string, estado string) error {
