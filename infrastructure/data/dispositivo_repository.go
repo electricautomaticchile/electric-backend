@@ -201,6 +201,9 @@ func (r *DispositivoRepository) UpdateUltimaLectura(ctx context.Context, numeroD
 		options.FindOneAndUpdate().SetReturnDocument(options.After),
 	).Decode(&updated)
 	if err != nil {
+		if err == mongo.ErrNoDocuments {
+			return nil, nil
+		}
 		return nil, err
 	}
 	return &updated, nil
