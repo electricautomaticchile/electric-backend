@@ -57,10 +57,9 @@ func (ctrl *AuthController) Login(gctx *gin.Context) {
 
 	requiereCambioPassword := result.User.PasswordTemporal != ""
 
-	// Mejora #10: Setear cookie HttpOnly, Secure, SameSite=Strict
-	isProduction := gctx.Request.TLS != nil || gctx.GetHeader("X-Forwarded-Proto") == "https"
-	gctx.SetSameSite(http.SameSiteStrictMode)
-	gctx.SetCookie("auth_token", result.Token, 1800, "/", "", isProduction, true)
+	// Nota: No setear cookie HttpOnly desde el backend porque el frontend
+	// está en un dominio diferente (electricautomaticchile.com vs api-electricautomaticchile.com).
+	// El frontend setea su propia cookie auth_token para el middleware de Next.js.
 
 	gctx.JSON(http.StatusOK, types.ApiResponse{
 		Success: true,
@@ -77,10 +76,6 @@ func (ctrl *AuthController) Logout(gctx *gin.Context) {
 	userID := gctx.Request.Context().Value(types.ContextKeyUserID).(string)
 	
 	ctrl.authFacade.RevokeAllRefreshTokens(gctx.Request.Context(), userID)
-	
-	isProduction := gctx.Request.TLS != nil || gctx.GetHeader("X-Forwarded-Proto") == "https"
-	gctx.SetSameSite(http.SameSiteStrictMode)
-	gctx.SetCookie("auth_token", "", -1, "/", "", isProduction, true)
 
 	gctx.JSON(http.StatusOK, types.ApiResponse{
 		Success: true,
@@ -131,11 +126,6 @@ func (ctrl *AuthController) RefreshToken(gctx *gin.Context) {
 		gctx.Error(err)
 		return
 	}
-
-	// Mejora #10: Actualizar cookie HttpOnly en refresh
-	isProduction := gctx.Request.TLS != nil || gctx.GetHeader("X-Forwarded-Proto") == "https"
-	gctx.SetSameSite(http.SameSiteStrictMode)
-	gctx.SetCookie("auth_token", result.Token, 1800, "/", "", isProduction, true)
 
 	gctx.JSON(http.StatusOK, types.ApiResponse{
 		Success: true,
@@ -268,9 +258,8 @@ func (ctrl *AuthController) LoginEmpresa(gctx *gin.Context) {
 	}
 
 	// Mejora #10: Cookie HttpOnly para login empresa
-	isProduction := gctx.Request.TLS != nil || gctx.GetHeader("X-Forwarded-Proto") == "https"
-	gctx.SetSameSite(http.SameSiteStrictMode)
-	gctx.SetCookie("auth_token", result.Token, 1800, "/", "", isProduction, true)
+	// Nota: No setear cookie HttpOnly — dominios diferentes (api vs frontend).
+	// El frontend setea su propia cookie auth_token.
 
 	gctx.JSON(http.StatusOK, types.ApiResponse{
 		Success: true,
