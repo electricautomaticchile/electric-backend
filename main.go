@@ -30,14 +30,18 @@ import (
 )
 
 func main() {
-	// Log rotation con lumberjack
-	log.SetOutput(&lumberjack.Logger{
-		Filename:   "./logs/electric-backend.log",
-		MaxSize:    50,
-		MaxBackups: 7,
-		MaxAge:     30,
-		Compress:   true,
-	})
+	// En ECS/Fargate los logs van por stdout → CloudWatch.
+	// Lumberjack solo se activa localmente para rotación de archivos.
+	if os.Getenv("NODE_ENV") != "production" {
+		log.SetOutput(&lumberjack.Logger{
+			Filename:   "./logs/electric-backend.log",
+			MaxSize:    50,
+			MaxBackups: 7,
+			MaxAge:     30,
+			Compress:   true,
+		})
+	}
+	// En producción log.Printf va a stdout (default de Go) → CloudWatch lo captura
 
 	config.LoadConfig()
 
