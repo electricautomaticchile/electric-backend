@@ -14,7 +14,8 @@ import (
 
 var RedisClient *redis.Client
 
-// ConnectRedis conecta a Redis
+// ConnectRedis conecta a Redis.
+// ElastiCache Serverless requiere TLS obligatorio con ServerName explícito.
 func ConnectRedis(host, port, password, dbStr string) error {
 	db, err := strconv.Atoi(dbStr)
 	if err != nil {
@@ -27,26 +28,29 @@ func ConnectRedis(host, port, password, dbStr string) error {
 		DB:       db,
 	}
 
-	// MED-05: Habilitar TLS si está configurado
+	// ElastiCache Serverless siempre requiere TLS.
+	// También funciona para Redis local si REDIS_TLS=true.
 	if os.Getenv("REDIS_TLS") == "true" {
-		opts.TLSConfig = &tls.Config{MinVersion: tls.VersionTLS12}
+		opts.TLSConfig = &tls.Config{
+			MinVersion: tls.VersionTLS12,
+			ServerName: host, // Requerido para ElastiCache Serverless
+		}
 	}
 
 	RedisClient = redis.NewClient(opts)
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	// Verificar la conexión
 	_, err = RedisClient.Ping(ctx).Result()
 	if err != nil {
-		log.Printf("⚠️ No se pudo conectar a Redis: %v", err)
-		log.Println("ℹ️ La aplicación continuará sin cache")
+		log.Printf("⚠️ No se pudo conectar a Redis (%s:%s): %v", host, port, err)
+		log.Println("ℹ️ La aplicación continuará sin cache (rate limiter y CSRF usarán memoria)")
 		RedisClient = nil
-		return nil // No es un error crítico
+		return nil
 	}
 
-	log.Println("✅ Conectado a Redis")
+	log.Printf("✅ Conectado a Redis en %s:%s", host, port)
 	return nil
 }
 
