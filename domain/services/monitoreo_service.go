@@ -15,6 +15,18 @@ type MonitoreoService struct {
 	dispositivoRepo  ports.PortDispositivo
 	clienteRepo      ports.PortCliente
 	empresaRepo      ports.PortEmpresa
+	emailService     EmailSender    // Mejora #12: Alertas externas
+	smsService       SMSSender      // Mejora #12: Alertas externas
+}
+
+// EmailSender interfaz mínima para envío de alertas por email
+type EmailSender interface {
+	EnviarNotificacionAlerta(destinatario, nombreCliente, tipoAlerta, mensaje string) error
+}
+
+// SMSSender interfaz mínima para envío de alertas por SMS
+type SMSSender interface {
+	EnviarSMS(to, mensaje string) error
 }
 
 func NewMonitoreoService(
@@ -22,12 +34,16 @@ func NewMonitoreoService(
 	dispositivoRepo ports.PortDispositivo,
 	clienteRepo ports.PortCliente,
 	empresaRepo ports.PortEmpresa,
+	emailService EmailSender,
+	smsService SMSSender,
 ) *MonitoreoService {
 	return &MonitoreoService{
 		notificacionRepo: notificacionRepo,
 		dispositivoRepo:  dispositivoRepo,
 		clienteRepo:      clienteRepo,
 		empresaRepo:      empresaRepo,
+		emailService:     emailService,
+		smsService:       smsService,
 	}
 }
 
@@ -70,6 +86,7 @@ func (s *MonitoreoService) VerificarConsumoAnormal(ctx context.Context, empresaI
 			}
 
 			s.notificacionRepo.Create(ctx, notificacion)
+			s.enviarAlertaExterna(ctx, dispositivo, titulo, mensaje, "advertencia")
 		}
 
 		if consumoActual < 0.01 && dispositivo.Estado == "activo" {
@@ -97,6 +114,7 @@ func (s *MonitoreoService) VerificarConsumoAnormal(ctx context.Context, empresaI
 			}
 
 			s.notificacionRepo.Create(ctx, notificacion)
+			s.enviarAlertaExterna(ctx, dispositivo, titulo, mensaje, "advertencia")
 		}
 	}
 
@@ -141,6 +159,7 @@ func (s *MonitoreoService) VerificarPatronesAnormales(ctx context.Context, empre
 			}
 
 			s.notificacionRepo.Create(ctx, notificacion)
+			s.enviarAlertaExterna(ctx, dispositivo, titulo, mensaje, "error")
 		}
 
 		if dispositivo.UltimaLectura.Current > 50 {
@@ -169,6 +188,7 @@ func (s *MonitoreoService) VerificarPatronesAnormales(ctx context.Context, empre
 			}
 
 			s.notificacionRepo.Create(ctx, notificacion)
+			s.enviarAlertaExterna(ctx, dispositivo, titulo, mensaje, "error")
 		}
 	}
 
@@ -322,6 +342,37 @@ func (s *MonitoreoService) analizarDispositivoAntifraude(dispositivo *entities.D
 	}
 
 	return anomalias
+}
+
+// Mejora #12: Enviar alertas externas (email/SMS) cuando se detectan anomalías
+func (s *MonitoreoService) enviarAlertaExterna(ctx context.Context, dispositivo *entities.DispositivoEntity, titulo, mensaje, severidad string) {
+	if dispositivo.ClienteID.IsZero() {
+		return
+	}
+
+	cliente, err := s.clienteRepo.FindByID(ctx, dispositivo.ClienteID.Hex())
+	if err != nil || cliente == nil {
+		return
+	}
+
+	// Enviar email si hay correo configurado
+	if s.emailService != nil && cliente.Correo != "" {
+		go func() {
+			if err := s.emailService.EnviarNotificacionAlerta(cliente.Correo, cliente.Nombre, titulo, mensaje); err != nil {
+				fmt.Printf("Error enviando alerta email a %s: %v\n", cliente.Correo, err)
+			}
+		}()
+	}
+
+	// Enviar SMS solo para alertas críticas/error
+	if s.smsService != nil && cliente.Telefono != "" && (severidad == "error" || severidad == "critical") {
+		go func() {
+			smsMsg := fmt.Sprintf("⚠️ %s\n%s\n- Electric Automatic Chile", titulo, mensaje)
+			if err := s.smsService.EnviarSMS(cliente.Telefono, smsMsg); err != nil {
+				fmt.Printf("Error enviando alerta SMS a %s: %v\n", cliente.Telefono, err)
+			}
+		}()
+	}
 }
 
 func (s *MonitoreoService) ObtenerEstadisticasAntifraude(ctx context.Context, empresaID string) (*EstadisticasAntifraude, error) {

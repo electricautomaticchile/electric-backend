@@ -76,6 +76,13 @@ func CreateIndexes(db *mongo.Database) error {
 						{Key: "estado", Value: 1},
 					},
 				},
+				{
+					// Mejora #9: Índice para validación de token IoT por dispositivo
+					Keys: bson.D{
+						{Key: "iotToken", Value: 1},
+					},
+					Options: options.Index().SetSparse(true),
+				},
 			},
 		},
 		{

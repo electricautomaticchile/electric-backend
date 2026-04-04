@@ -14,19 +14,20 @@ type NotificacionSMSService struct {
 	clienteRepo     ports.PortCliente
 	boletaRepo      ports.BoletaRepository
 	dispositivoRepo ports.DispositivoRepository
-	smsService      *sms.InfobipService
+	smsService      sms.SMSService
 }
 
 func NewNotificacionSMSService(
 	clienteRepo ports.PortCliente,
 	boletaRepo ports.BoletaRepository,
 	dispositivoRepo ports.DispositivoRepository,
+	smsService sms.SMSService,
 ) *NotificacionSMSService {
 	return &NotificacionSMSService{
 		clienteRepo:     clienteRepo,
 		boletaRepo:      boletaRepo,
 		dispositivoRepo: dispositivoRepo,
-		smsService:      sms.NewInfobipService(),
+		smsService:      smsService,
 	}
 }
 

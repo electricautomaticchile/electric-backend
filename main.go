@@ -12,6 +12,7 @@ import (
 	"electric-backend/infrastructure/email"
 	"electric-backend/infrastructure/middleware"
 	"electric-backend/infrastructure/scheduler"
+	"electric-backend/infrastructure/sms"
 	"electric-backend/infrastructure/validation"
 	"electric-backend/infrastructure/websocket"
 	"electric-backend/types"
@@ -273,12 +274,19 @@ func main() {
 	boletaService := services.NewBoletaService(boletaRepo, clienteRepo, emailService)
 	ticketService := services.NewTicketService(ticketRepo, notificacionRepo, emailService, clienteRepo, empresaRepo)
 	cotizacionService := services.NewCotizacionService(cotizacionRepo)
-	alertaAutomaticaService := services.NewMonitoreoService(notificacionRepo, dispositivoRepo, clienteRepo, empresaRepo)
+
+	// Mejora #8: Migrar Infobip → SNS
+	snsService, snsErr := sms.NewSNSService()
+	if snsErr != nil {
+		log.Printf("⚠️ SNS no disponible: %v — notificaciones SMS deshabilitadas", snsErr)
+	}
+
+	alertaAutomaticaService := services.NewMonitoreoService(notificacionRepo, dispositivoRepo, clienteRepo, empresaRepo, emailService, snsService)
 	monitoreoService := alertaAutomaticaService
 	tarifaService := services.NewTarifaService(tarifaRepo)
 	consumoService := services.NewConsumoService(clienteRepo, tarifaRepo)
 
-	notificacionSMSService := services.NewNotificacionSMSService(clienteRepo, boletaRepo, dispositivoRepo)
+	notificacionSMSService := services.NewNotificacionSMSService(clienteRepo, boletaRepo, dispositivoRepo, snsService)
 	notificacionesScheduler := scheduler.NewNotificacionesScheduler(notificacionSMSService)
 	notificacionesScheduler.Iniciar()
 	log.Printf("✅ Scheduler de notificaciones SMS iniciado")
@@ -375,6 +383,14 @@ func main() {
 		{
 			iot.POST("/lectura", dispositivoController.RecibirLecturaIoT)
 			iot.POST("/comando-ejecutado", dispositivoController.ComandoEjecutado)
+		}
+
+		// Mejora #13: Endpoint /api/v1/iot/status (protegido por JWT, no por API Key IoT)
+		iotStatus := api.Group("/v1/iot")
+		iotStatus.Use(middleware.AuthMiddleware())
+		{
+			iotStatusController := controllers.NewIoTStatusController(dispositivoRepo)
+			iotStatus.GET("/status", iotStatusController.GetAllStatus)
 		}
 	}
 

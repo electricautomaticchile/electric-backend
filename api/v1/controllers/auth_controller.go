@@ -57,6 +57,11 @@ func (ctrl *AuthController) Login(gctx *gin.Context) {
 
 	requiereCambioPassword := result.User.PasswordTemporal != ""
 
+	// Mejora #10: Setear cookie HttpOnly, Secure, SameSite=Strict
+	isProduction := gctx.Request.TLS != nil || gctx.GetHeader("X-Forwarded-Proto") == "https"
+	gctx.SetSameSite(http.SameSiteStrictMode)
+	gctx.SetCookie("auth_token", result.Token, 1800, "/", "", isProduction, true)
+
 	gctx.JSON(http.StatusOK, types.ApiResponse{
 		Success: true,
 		Data: gin.H{
@@ -73,15 +78,9 @@ func (ctrl *AuthController) Logout(gctx *gin.Context) {
 	
 	ctrl.authFacade.RevokeAllRefreshTokens(gctx.Request.Context(), userID)
 	
-	gctx.SetCookie(
-		"auth_token",
-		"",
-		-1,
-		"/",
-		"",
-		false,
-		true,
-	)
+	isProduction := gctx.Request.TLS != nil || gctx.GetHeader("X-Forwarded-Proto") == "https"
+	gctx.SetSameSite(http.SameSiteStrictMode)
+	gctx.SetCookie("auth_token", "", -1, "/", "", isProduction, true)
 
 	gctx.JSON(http.StatusOK, types.ApiResponse{
 		Success: true,
@@ -132,6 +131,11 @@ func (ctrl *AuthController) RefreshToken(gctx *gin.Context) {
 		gctx.Error(err)
 		return
 	}
+
+	// Mejora #10: Actualizar cookie HttpOnly en refresh
+	isProduction := gctx.Request.TLS != nil || gctx.GetHeader("X-Forwarded-Proto") == "https"
+	gctx.SetSameSite(http.SameSiteStrictMode)
+	gctx.SetCookie("auth_token", result.Token, 1800, "/", "", isProduction, true)
 
 	gctx.JSON(http.StatusOK, types.ApiResponse{
 		Success: true,
@@ -262,6 +266,11 @@ func (ctrl *AuthController) LoginEmpresa(gctx *gin.Context) {
 		gctx.Error(err)
 		return
 	}
+
+	// Mejora #10: Cookie HttpOnly para login empresa
+	isProduction := gctx.Request.TLS != nil || gctx.GetHeader("X-Forwarded-Proto") == "https"
+	gctx.SetSameSite(http.SameSiteStrictMode)
+	gctx.SetCookie("auth_token", result.Token, 1800, "/", "", isProduction, true)
 
 	gctx.JSON(http.StatusOK, types.ApiResponse{
 		Success: true,
