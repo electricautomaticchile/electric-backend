@@ -1,37 +1,93 @@
 package middleware
 
 import (
+	"context"
+	"fmt"
 	"net/http"
 	"strings"
 	"sync"
 	"time"
 
+	"electric-backend/config"
+
 	"github.com/gin-gonic/gin"
 )
 
-type visitor struct {
+// fallbackVisitor se usa cuando Redis no está disponible
+type fallbackVisitor struct {
 	lastSeen time.Time
 	count    int
 }
 
 var (
-	visitors = make(map[string]*visitor)
-	mu       sync.RWMutex
+	fallbackVisitors = make(map[string]*fallbackVisitor)
+	fallbackMu       sync.RWMutex
 )
 
 func init() {
 	go func() {
 		for {
 			time.Sleep(time.Minute)
-			mu.Lock()
-			for key, v := range visitors {
+			fallbackMu.Lock()
+			for key, v := range fallbackVisitors {
 				if time.Since(v.lastSeen) > 2*time.Minute {
-					delete(visitors, key)
+					delete(fallbackVisitors, key)
 				}
 			}
-			mu.Unlock()
+			fallbackMu.Unlock()
 		}
 	}()
+}
+
+// checkRateLimitRedis intenta usar Redis para rate limiting.
+// Retorna (allowed bool, err error). Si err != nil, hacer fallback a memoria.
+func checkRateLimitRedis(key string, limit int, window time.Duration) (bool, error) {
+	if config.RedisClient == nil {
+		return false, fmt.Errorf("redis not available")
+	}
+
+	ctx := context.Background()
+	count, err := config.RedisClient.Incr(ctx, key).Result()
+	if err != nil {
+		return false, err
+	}
+
+	if count == 1 {
+		config.RedisClient.Expire(ctx, key, window)
+	}
+
+	return count <= int64(limit), nil
+}
+
+// checkRateLimitFallback usa el mapa en memoria como fallback
+func checkRateLimitFallback(key string, limit int) bool {
+	fallbackMu.Lock()
+	defer fallbackMu.Unlock()
+
+	v, exists := fallbackVisitors[key]
+	if !exists {
+		fallbackVisitors[key] = &fallbackVisitor{lastSeen: time.Now(), count: 1}
+		return true
+	}
+
+	if time.Since(v.lastSeen) > time.Minute {
+		v.lastSeen = time.Now()
+		v.count = 1
+		return true
+	}
+
+	v.count++
+	return v.count <= limit
+}
+
+func rateLimitResponse(c *gin.Context) {
+	c.JSON(http.StatusTooManyRequests, gin.H{
+		"success": false,
+		"error": gin.H{
+			"message": "Demasiadas peticiones. Por favor, intenta más tarde.",
+		},
+	})
+	c.Abort()
 }
 
 func RateLimitMiddleware(requestsPerMinute int) gin.HandlerFunc {
@@ -41,42 +97,23 @@ func RateLimitMiddleware(requestsPerMinute int) gin.HandlerFunc {
 			userID = c.ClientIP()
 		}
 
-		key := userID.(string)
+		key := fmt.Sprintf("rate:%s", userID)
 
-		mu.Lock()
-		v, exists := visitors[key]
-		if !exists {
-			visitors[key] = &visitor{
-				lastSeen: time.Now(),
-				count:    1,
+		allowed, err := checkRateLimitRedis(key, requestsPerMinute, time.Minute)
+		if err != nil {
+			// Fallback a memoria
+			if !checkRateLimitFallback(key, requestsPerMinute) {
+				rateLimitResponse(c)
+				return
 			}
-			mu.Unlock()
 			c.Next()
 			return
 		}
 
-		if time.Since(v.lastSeen) > time.Minute {
-			v.lastSeen = time.Now()
-			v.count = 1
-			mu.Unlock()
-			c.Next()
+		if !allowed {
+			rateLimitResponse(c)
 			return
 		}
-
-		v.count++
-		if v.count > requestsPerMinute {
-			mu.Unlock()
-			c.JSON(http.StatusTooManyRequests, gin.H{
-				"success": false,
-				"error": gin.H{
-					"message": "Demasiadas peticiones. Por favor, intenta más tarde.",
-				},
-			})
-			c.Abort()
-			return
-		}
-
-		mu.Unlock()
 		c.Next()
 	}
 }
@@ -106,47 +143,27 @@ func EndpointRateLimitMiddleware(limits map[string]int) gin.HandlerFunc {
 			return
 		}
 
-		userID, exists := c.Get("userID")
-		if !exists {
+		userID, hasUser := c.Get("userID")
+		if !hasUser {
 			userID = c.ClientIP()
 		}
 
-		key := userID.(string) + ":" + endpoint
+		key := fmt.Sprintf("rate:%s:%s", userID, endpoint)
 
-		mu.Lock()
-		v, exists := visitors[key]
-		if !exists {
-			visitors[key] = &visitor{
-				lastSeen: time.Now(),
-				count:    1,
+		allowed, err := checkRateLimitRedis(key, limit, time.Minute)
+		if err != nil {
+			if !checkRateLimitFallback(key, limit) {
+				rateLimitResponse(c)
+				return
 			}
-			mu.Unlock()
 			c.Next()
 			return
 		}
 
-		if time.Since(v.lastSeen) > time.Minute {
-			v.lastSeen = time.Now()
-			v.count = 1
-			mu.Unlock()
-			c.Next()
+		if !allowed {
+			rateLimitResponse(c)
 			return
 		}
-
-		v.count++
-		if v.count > limit {
-			mu.Unlock()
-			c.JSON(http.StatusTooManyRequests, gin.H{
-				"success": false,
-				"error": gin.H{
-					"message": "Demasiadas peticiones. Por favor, intenta más tarde.",
-				},
-			})
-			c.Abort()
-			return
-		}
-
-		mu.Unlock()
 		c.Next()
 	}
 }

@@ -40,7 +40,7 @@ func CreateIndexes(db *mongo.Database) error {
 				},
 				{
 					Keys: bson.D{
-						{Key: "email", Value: 1},
+						{Key: "correo", Value: 1},
 					},
 				},
 				{
@@ -217,7 +217,7 @@ func CreateIndexes(db *mongo.Database) error {
 			indexes: []mongo.IndexModel{
 				{
 					Keys: bson.D{
-						{Key: "usuarioId", Value: 1},
+						{Key: "destinatarioId", Value: 1},
 						{Key: "leida", Value: 1},
 					},
 				},
@@ -257,6 +257,52 @@ func CreateIndexes(db *mongo.Database) error {
 						{Key: "expiresAt", Value: 1},
 					},
 					Options: options.Index().SetExpireAfterSeconds(0),
+				},
+			},
+		},
+		{
+			collection: "audit_logs",
+			indexes: []mongo.IndexModel{
+				{
+					Keys: bson.D{
+						{Key: "timestamp", Value: -1},
+					},
+				},
+				{
+					Keys: bson.D{
+						{Key: "userId", Value: 1},
+						{Key: "timestamp", Value: -1},
+					},
+				},
+				{
+					Keys: bson.D{
+						{Key: "ipAddress", Value: 1},
+						{Key: "success", Value: 1},
+					},
+				},
+				{
+					Keys: bson.D{
+						{Key: "timestamp", Value: 1},
+					},
+					Options: options.Index().SetExpireAfterSeconds(7776000), // TTL 90 días
+				},
+			},
+		},
+		{
+			collection: "tarifas",
+			indexes: []mongo.IndexModel{
+				{
+					Keys: bson.D{
+						{Key: "distribuidora", Value: 1},
+						{Key: "comuna", Value: 1},
+						{Key: "activa", Value: 1},
+					},
+				},
+				{
+					Keys: bson.D{
+						{Key: "vigenciaDesde", Value: 1},
+						{Key: "vigenciaHasta", Value: 1},
+					},
 				},
 			},
 		},

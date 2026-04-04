@@ -57,14 +57,24 @@ func (s *AuthService) Login(ctx context.Context, r *recipe.LoginRecipe) (*models
 		return nil, types.ThrowAuth("Cliente inactivo")
 	}
 
+	// Bloqueo de cuenta: verificar intentos fallidos en Redis
+	if blocked, _ := s.isAccountLocked(ctx, cliente.ID); blocked {
+		return nil, types.ThrowAuth("Cuenta bloqueada temporalmente por demasiados intentos fallidos. Intenta en 15 minutos.")
+	}
+
 	if cliente.Password == "" {
 		return nil, types.ThrowAuth("Cliente sin contraseña configurada")
 	}
 
 	err = bcrypt.CompareHashAndPassword([]byte(cliente.Password), []byte(r.Password))
 	if err != nil {
+		// Registrar intento fallido
+		s.registerFailedAttempt(ctx, cliente.ID)
 		return nil, types.ThrowAuth("Credenciales inválidas")
 	}
+
+	// Login exitoso: limpiar intentos fallidos
+	s.clearFailedAttempts(ctx, cliente.ID)
 
 	s.clienteRepo.UpdateUltimoAcceso(ctx, cliente.ID)
 
@@ -72,6 +82,9 @@ func (s *AuthService) Login(ctx context.Context, r *recipe.LoginRecipe) (*models
 	if err != nil {
 		return nil, err
 	}
+
+	// Revocar todos los refresh tokens anteriores antes de crear uno nuevo
+	s.refreshTokenRepo.RevokeAllByUser(ctx, cliente.ID)
 
 	refreshToken, err := s.refreshTokenRepo.Create(ctx, cliente.ID, "cliente")
 	if err != nil {
@@ -373,17 +386,28 @@ func (s *AuthService) LoginEmpresa(ctx context.Context, r *recipe.LoginEmpresaRe
 		return nil, types.ThrowAuth("Empresa inactiva")
 	}
 
+	// Bloqueo de cuenta
+	if blocked, _ := s.isAccountLocked(ctx, empresa.ID); blocked {
+		return nil, types.ThrowAuth("Cuenta bloqueada temporalmente por demasiados intentos fallidos. Intenta en 15 minutos.")
+	}
+
 	err = bcrypt.CompareHashAndPassword([]byte(empresa.Password), []byte(r.Password))
 	if err != nil {
+		s.registerFailedAttempt(ctx, empresa.ID)
 		return nil, types.ThrowAuth("Credenciales inválidas")
 	}
 
+	// Login exitoso
+	s.clearFailedAttempts(ctx, empresa.ID)
 	s.empresaRepo.UpdateUltimoAcceso(ctx, empresa.ID)
 
 	token, err := s.generateTokenEmpresa(empresa)
 	if err != nil {
 		return nil, err
 	}
+
+	// Revocar refresh tokens anteriores
+	s.refreshTokenRepo.RevokeAllByUser(ctx, empresa.ID)
 
 	refreshToken, err := s.refreshTokenRepo.Create(ctx, empresa.ID, "empresa")
 	if err != nil {
@@ -483,4 +507,56 @@ func (s *AuthService) RefreshToken(ctx context.Context, refreshToken string) (*m
 
 func (s *AuthService) RevokeAllRefreshTokens(ctx context.Context, userID string) error {
 	return s.refreshTokenRepo.RevokeAllByUser(ctx, userID)
+}
+
+// --- Bloqueo de cuenta por intentos fallidos ---
+
+const (
+	maxLoginAttempts    = 5
+	lockoutDuration     = 15 * time.Minute
+	loginAttemptsPrefix = "login_attempts:"
+	loginLockPrefix     = "login_lock:"
+)
+
+// isAccountLocked verifica si la cuenta está bloqueada.
+// Usa Redis si está disponible, sino siempre retorna false (sin bloqueo).
+func (s *AuthService) isAccountLocked(ctx context.Context, userID string) (bool, error) {
+	if config.RedisClient == nil {
+		return false, nil
+	}
+	lockKey := loginLockPrefix + userID
+	exists, err := config.RedisClient.Exists(ctx, lockKey).Result()
+	if err != nil {
+		return false, err
+	}
+	return exists > 0, nil
+}
+
+// registerFailedAttempt incrementa el contador de intentos fallidos.
+// Bloquea la cuenta después de maxLoginAttempts.
+func (s *AuthService) registerFailedAttempt(ctx context.Context, userID string) {
+	if config.RedisClient == nil {
+		return
+	}
+	attemptsKey := loginAttemptsPrefix + userID
+	count, err := config.RedisClient.Incr(ctx, attemptsKey).Result()
+	if err != nil {
+		return
+	}
+	if count == 1 {
+		config.RedisClient.Expire(ctx, attemptsKey, lockoutDuration)
+	}
+	if count >= int64(maxLoginAttempts) {
+		lockKey := loginLockPrefix + userID
+		config.RedisClient.Set(ctx, lockKey, "locked", lockoutDuration)
+	}
+}
+
+// clearFailedAttempts limpia el contador tras un login exitoso.
+func (s *AuthService) clearFailedAttempts(ctx context.Context, userID string) {
+	if config.RedisClient == nil {
+		return
+	}
+	config.RedisClient.Del(ctx, loginAttemptsPrefix+userID)
+	config.RedisClient.Del(ctx, loginLockPrefix+userID)
 }

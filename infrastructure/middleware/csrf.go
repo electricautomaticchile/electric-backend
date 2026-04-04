@@ -1,27 +1,33 @@
 package middleware
 
 import (
+	"context"
 	"crypto/rand"
 	"encoding/base64"
+	"fmt"
 	"net/http"
 	"sync"
 	"time"
 
+	"electric-backend/config"
+
 	"github.com/gin-gonic/gin"
 )
 
-type CSRFToken struct {
+// --- Fallback en memoria (cuando Redis no está disponible) ---
+
+type csrfTokenEntry struct {
 	Token     string
 	ExpiresAt time.Time
 }
 
-type CSRFStore struct {
-	tokens map[string]CSRFToken
+type csrfFallbackStore struct {
+	tokens map[string]csrfTokenEntry
 	mu     sync.RWMutex
 }
 
-var csrfStore = &CSRFStore{
-	tokens: make(map[string]CSRFToken),
+var csrfMemStore = &csrfFallbackStore{
+	tokens: make(map[string]csrfTokenEntry),
 }
 
 func generateCSRFToken() (string, error) {
@@ -33,48 +39,88 @@ func generateCSRFToken() (string, error) {
 	return base64.URLEncoding.EncodeToString(b), nil
 }
 
-func (s *CSRFStore) Set(sessionID string, token string) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.tokens[sessionID] = CSRFToken{
+// --- Redis-backed CSRF store ---
+
+func csrfRedisKey(sessionID string) string {
+	return fmt.Sprintf("csrf:%s", sessionID)
+}
+
+func csrfSetRedis(sessionID, token string) error {
+	if config.RedisClient == nil {
+		return fmt.Errorf("redis not available")
+	}
+	ctx := context.Background()
+	return config.RedisClient.Set(ctx, csrfRedisKey(sessionID), token, 24*time.Hour).Err()
+}
+
+func csrfGetRedis(sessionID string) (string, bool) {
+	if config.RedisClient == nil {
+		return "", false
+	}
+	ctx := context.Background()
+	val, err := config.RedisClient.Get(ctx, csrfRedisKey(sessionID)).Result()
+	if err != nil {
+		return "", false
+	}
+	return val, true
+}
+
+// --- Fallback en memoria ---
+
+func csrfSetMemory(sessionID, token string) {
+	csrfMemStore.mu.Lock()
+	defer csrfMemStore.mu.Unlock()
+	csrfMemStore.tokens[sessionID] = csrfTokenEntry{
 		Token:     token,
 		ExpiresAt: time.Now().Add(24 * time.Hour),
 	}
 }
 
-func (s *CSRFStore) Get(sessionID string) (string, bool) {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	token, exists := s.tokens[sessionID]
-	if !exists || time.Now().After(token.ExpiresAt) {
+func csrfGetMemory(sessionID string) (string, bool) {
+	csrfMemStore.mu.RLock()
+	defer csrfMemStore.mu.RUnlock()
+	entry, exists := csrfMemStore.tokens[sessionID]
+	if !exists || time.Now().After(entry.ExpiresAt) {
 		return "", false
 	}
-	return token.Token, true
+	return entry.Token, true
 }
 
-func (s *CSRFStore) Delete(sessionID string) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	delete(s.tokens, sessionID)
-}
-
-func (s *CSRFStore) Cleanup() {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+func csrfCleanupMemory() {
+	csrfMemStore.mu.Lock()
+	defer csrfMemStore.mu.Unlock()
 	now := time.Now()
-	for sessionID, token := range s.tokens {
-		if now.After(token.ExpiresAt) {
-			delete(s.tokens, sessionID)
+	for k, v := range csrfMemStore.tokens {
+		if now.After(v.ExpiresAt) {
+			delete(csrfMemStore.tokens, k)
 		}
 	}
 }
 
+// --- Funciones unificadas (Redis con fallback a memoria) ---
+
+func csrfSet(sessionID, token string) {
+	if err := csrfSetRedis(sessionID, token); err != nil {
+		csrfSetMemory(sessionID, token)
+	}
+}
+
+func csrfGet(sessionID string) (string, bool) {
+	if token, ok := csrfGetRedis(sessionID); ok {
+		return token, true
+	}
+	return csrfGetMemory(sessionID)
+}
+
+// --- Middleware y helpers públicos ---
+
 func CSRFMiddleware() gin.HandlerFunc {
+	// Cleanup de memoria cada hora
 	go func() {
 		ticker := time.NewTicker(1 * time.Hour)
 		defer ticker.Stop()
 		for range ticker.C {
-			csrfStore.Cleanup()
+			csrfCleanupMemory()
 		}
 	}()
 
@@ -115,7 +161,7 @@ func CSRFMiddleware() gin.HandlerFunc {
 			return
 		}
 
-		serverToken, exists := csrfStore.Get(sessionID)
+		serverToken, exists := csrfGet(sessionID)
 		if !exists || serverToken != clientToken {
 			c.JSON(http.StatusForbidden, gin.H{
 				"success": false,
@@ -137,21 +183,19 @@ func GetCSRFToken(c *gin.Context) string {
 			sessionID = userID.(string)
 		}
 	}
-
 	if sessionID == "" {
 		return ""
 	}
 
-	token, exists := csrfStore.Get(sessionID)
+	token, exists := csrfGet(sessionID)
 	if !exists {
 		newToken, err := generateCSRFToken()
 		if err != nil {
 			return ""
 		}
-		csrfStore.Set(sessionID, newToken)
+		csrfSet(sessionID, newToken)
 		return newToken
 	}
-
 	return token
 }
 
@@ -160,6 +204,6 @@ func GenerateCSRFTokenForSession(sessionID string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	csrfStore.Set(sessionID, token)
+	csrfSet(sessionID, token)
 	return token, nil
 }

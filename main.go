@@ -72,8 +72,16 @@ func main() {
 		log.Printf("⚠️ Error creando índices: %v", err)
 	}
 
-	// Redis eliminado — se usa ElastiCache o se maneja sin caché local
-	// if err := config.ConnectRedis(...); err != nil { ... }
+	// Conectar a Redis (ElastiCache o local)
+	if err := config.ConnectRedis(
+		config.AppConfig.RedisHost,
+		config.AppConfig.RedisPort,
+		config.AppConfig.RedisPassword,
+		config.AppConfig.RedisDB,
+	); err != nil {
+		log.Printf("⚠️ Redis no disponible: %v — rate limiter y CSRF usarán fallback en memoria", err)
+	}
+	defer config.DisconnectRedis()
 
 	auditLogRepo := data.NewAuditLogRepository()
 	auditLogService := services.NewAuditLogService(auditLogRepo)
@@ -204,7 +212,7 @@ func main() {
 				"connected": config.MongoDB != nil,
 			},
 			"redis": gin.H{
-				"connected": false,
+				"connected": config.RedisClient != nil,
 			},
 			"websocket": gin.H{
 				"clients": wsHub.GetConnectedClients(),

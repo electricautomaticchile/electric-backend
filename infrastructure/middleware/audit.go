@@ -71,8 +71,9 @@ func AuditMiddleware(auditService *services.AuditLogService) gin.HandlerFunc {
 		var responseBody map[string]interface{}
 		if blw.body.Len() > 0 && blw.body.Len() < 10000 {
 			json.Unmarshal(blw.body.Bytes(), &responseBody)
-			// MED-06: Redactar campos sensibles del response body
-			sanitizeResponseBody(responseBody)
+			// Reducir responseBody: solo guardar success, error y message
+			// No guardar data completa (infla la DB innecesariamente)
+			responseBody = summarizeResponseBody(responseBody)
 		}
 
 		success := c.Writer.Status() >= 200 && c.Writer.Status() < 400
@@ -129,6 +130,20 @@ func shouldSkipAudit(path string) bool {
 		}
 	}
 
+	// Filtrar escaneos de bots/atacantes que inflan la DB con basura
+	scannerPatterns := []string{
+		".git/", ".env", ".svn/", ".ssh/", "wp-admin", "wp-content",
+		"wp-config", "phpinfo", ".DS_Store", "etc/passwd",
+		"swagger-ui", "actuator/", "solr/", "graphql/console",
+		"admin.php", "bolt.php", "backup.sql", ".keys/",
+	}
+	pathLower := strings.ToLower(path)
+	for _, pattern := range scannerPatterns {
+		if strings.Contains(pathLower, pattern) {
+			return true
+		}
+	}
+
 	return false
 }
 
@@ -140,6 +155,28 @@ func sanitizeRequestBody(body map[string]interface{}) {
 			body[field] = "***REDACTED***"
 		}
 	}
+}
+
+// summarizeResponseBody reduce el body guardado en audit_logs.
+// Solo guarda success, error y message — no el data completo que infla la DB.
+func summarizeResponseBody(body map[string]interface{}) map[string]interface{} {
+	if body == nil {
+		return nil
+	}
+	summary := make(map[string]interface{})
+	if v, ok := body["success"]; ok {
+		summary["success"] = v
+	}
+	if v, ok := body["error"]; ok {
+		summary["error"] = v
+	}
+	if v, ok := body["message"]; ok {
+		summary["message"] = v
+	}
+	if v, ok := body["ok"]; ok {
+		summary["ok"] = v
+	}
+	return summary
 }
 
 // MED-06: Redactar campos sensibles del response body
