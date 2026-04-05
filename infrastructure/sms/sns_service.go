@@ -58,7 +58,7 @@ func (s *SNSService) EnviarNotificacionConsumo(telefono, nombreCliente string, c
 			"⚡ %.2f kWh\n"+
 			"💰 $%.0f aprox.\n"+
 			"Reduce tu consumo para ahorrar.\n"+
-			"- Electric Automatic Chile",
+			"- Electricatomaticchile",
 		nombreCliente, diasTranscurridos, consumoKWh, costoEstimado,
 	)
 	return s.EnviarSMS(telefono, mensaje)
@@ -70,7 +70,7 @@ func (s *SNSService) EnviarAvisoCorteServicio(telefono, nombreCliente string, bo
 			"Hola %s, tienes %d boletas impagas por $%.0f.\n"+
 			"Tu servicio sera cortado pronto.\n"+
 			"Paga en: electricautomaticchile.com/cliente\n"+
-			"- Electric Automatic Chile",
+			"- Electricautomaticchile",
 		nombreCliente, boletasImpagas, montoTotal,
 	)
 	return s.EnviarSMS(telefono, mensaje)
@@ -81,7 +81,7 @@ func (s *SNSService) EnviarConfirmacionPago(telefono, nombreCliente, numeroBolet
 		"✅ Pago confirmado\n"+
 			"Hola %s, recibimos tu pago de $%.0f para la boleta #%s.\n"+
 			"Gracias por tu preferencia.\n"+
-			"- Electric Automatic Chile",
+			"- Electricautomaticchile",
 		nombreCliente, monto, numeroBoleta,
 	)
 	return s.EnviarSMS(telefono, mensaje)
