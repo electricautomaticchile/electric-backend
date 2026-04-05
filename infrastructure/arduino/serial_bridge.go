@@ -4,6 +4,8 @@ import (
 	"bufio"
 	"context"
 	"electric-backend/config"
+	"electric-backend/infrastructure/email"
+	"electric-backend/infrastructure/sms"
 	"electric-backend/infrastructure/websocket"
 	"encoding/json"
 	"fmt"
@@ -16,6 +18,7 @@ import (
 	"go.bug.st/serial"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
+	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
 type SerialBridge struct {
@@ -29,6 +32,9 @@ type SerialBridge struct {
 	restoredDevices map[string]bool
 	aggregator      *ReadingAggregator
 	mu              sync.Mutex
+	// Umbrales de notificación por costo
+	costThresholds    map[string]float64 // deviceID → último umbral notificado
+	costThresholdsMu  sync.Mutex
 }
 
 func NewSerialBridge(hub *websocket.Hub) *SerialBridge {
@@ -53,6 +59,7 @@ func NewSerialBridge(hub *websocket.Hub) *SerialBridge {
 		ports:           make(map[string]serial.Port),
 		devices:         make(map[string]*DeviceInfo),
 		restoredDevices: make(map[string]bool),
+		costThresholds:  make(map[string]float64),
 		hub:             hub,
 		ctx:             ctx,
 		cancel:          cancel,
@@ -300,6 +307,150 @@ func (sb *SerialBridge) processLine(line string, portPath string) {
 	go sb.saveReading(&data)
 
 	sb.sendToWebSocket(&data)
+
+	// Verificar umbral de costo para notificación SMS + Email
+	go sb.checkCostThreshold(&data)
+}
+
+// checkCostThreshold verifica si el costo acumulado cruzó un umbral y envía SMS + Email
+func (sb *SerialBridge) checkCostThreshold(data *ArduinoData) {
+	const umbralCLP float64 = 1150 // Cada $15.000 CLP envía notificación
+
+	sb.devicesMu.RLock()
+	device := sb.devices[data.DeviceID]
+	sb.devicesMu.RUnlock()
+	if device == nil || device.ClienteID == "" {
+		return
+	}
+
+	costoActual := data.Cost
+	if costoActual < umbralCLP {
+		return
+	}
+
+	// En qué múltiplo del umbral estamos: $15000, $30000, $45000...
+	umbralActual := float64(int(costoActual/umbralCLP)) * umbralCLP
+
+	// 1) Check rápido en memoria
+	sb.costThresholdsMu.Lock()
+	if umbralActual <= sb.costThresholds[data.DeviceID] {
+		sb.costThresholdsMu.Unlock()
+		return
+	}
+	sb.costThresholdsMu.Unlock()
+
+	// 2) Check en MongoDB (sobrevive reinicios)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	thresholdCol := config.MongoDB.Collection("cost_thresholds")
+
+	var doc bson.M
+	_ = thresholdCol.FindOne(ctx, bson.M{"deviceId": data.DeviceID}).Decode(&doc)
+	if doc != nil {
+		if last, ok := doc["lastThreshold"].(float64); ok && umbralActual <= last {
+			// Ya notificado — sincronizar memoria y salir
+			sb.costThresholdsMu.Lock()
+			sb.costThresholds[data.DeviceID] = last
+			sb.costThresholdsMu.Unlock()
+			return
+		}
+	}
+
+	// 3) Nuevo umbral — persistir y notificar
+	sb.costThresholdsMu.Lock()
+	sb.costThresholds[data.DeviceID] = umbralActual
+	sb.costThresholdsMu.Unlock()
+
+	thresholdCol.UpdateOne(ctx,
+		bson.M{"deviceId": data.DeviceID},
+		bson.M{"$set": bson.M{"deviceId": data.DeviceID, "lastThreshold": umbralActual, "updatedAt": time.Now()}},
+		options.Update().SetUpsert(true),
+	)
+
+	log.Printf("💰 Umbral de costo alcanzado: dispositivo %s → $%.0f CLP (energía: %.3f kWh, umbral: $%.0f)",
+		data.DeviceID, costoActual, data.Energy, umbralActual)
+
+	// Buscar datos del cliente en MongoDB
+	clienteCol := config.MongoDB.Collection("clientes")
+	clienteOID, err := primitive.ObjectIDFromHex(device.ClienteID)
+	if err != nil {
+		return
+	}
+
+	var cliente bson.M
+	if err := clienteCol.FindOne(ctx, bson.M{"_id": clienteOID}).Decode(&cliente); err != nil {
+		log.Printf("⚠️ No se encontró cliente %s para notificación de costo", device.ClienteID)
+		return
+	}
+
+	nombreCliente, _ := cliente["nombre"].(string)
+	telefono, _ := cliente["telefono"].(string)
+	correo, _ := cliente["correo"].(string)
+
+	// Enviar SMS si tiene teléfono
+	if telefono != "" {
+		go func() {
+			snsService, err := sms.NewSNSService()
+			if err != nil {
+				log.Printf("⚠️ Error creando SNS service: %v", err)
+				return
+			}
+			mensaje := fmt.Sprintf(
+				"⚡ Hola %s, tu consumo eléctrico ha alcanzado:\n"+
+					"💡 %.2f kWh\n"+
+					"💰 $%.0f CLP\n"+
+					"Revisa tu consumo en la app.\n"+
+					"- Electricautomaticchile",
+				nombreCliente, data.Energy, costoActual,
+			)
+			if err := snsService.EnviarSMS(telefono, mensaje); err != nil {
+				log.Printf("❌ Error enviando SMS de umbral a %s: %v", telefono, err)
+			} else {
+				log.Printf("✅ SMS de umbral enviado a %s ($%.0f CLP)", nombreCliente, costoActual)
+			}
+		}()
+	}
+
+	// Enviar Email con template de consumo
+	if correo != "" {
+		go func() {
+			emailService := email.NewSESService()
+			costoStr := fmt.Sprintf("$%.0f CLP", costoActual)
+			energiaStr := fmt.Sprintf("%.2f kWh", data.Energy)
+
+			subject := fmt.Sprintf("⚡ Tu consumo alcanzó %s - Electricautomaticchile", costoStr)
+
+			htmlBody := fmt.Sprintf(`<!DOCTYPE html><html><body style="font-family:Arial,sans-serif;color:#333">
+<div style="max-width:600px;margin:0 auto">
+<div style="background:linear-gradient(135deg,#f97316,#ea580c);color:white;padding:30px;text-align:center;border-radius:10px 10px 0 0">
+<h1 style="margin:0">⚡ Electricautomaticchile</h1>
+<p style="margin:5px 0 0;opacity:.9">Notificación de Consumo Eléctrico</p>
+</div>
+<div style="background:white;padding:30px;border-radius:0 0 10px 10px">
+<p>Hola <strong>%s</strong>,</p>
+<p>Tu consumo eléctrico ha alcanzado un nuevo umbral:</p>
+<div style="background:#fff7ed;border:1px solid #fed7aa;border-radius:8px;padding:20px;text-align:center;margin:20px 0">
+<div style="font-size:12px;color:#9a3412;text-transform:uppercase;letter-spacing:1px">Costo Acumulado</div>
+<div style="font-size:36px;font-weight:bold;color:#ea580c">%s</div>
+<div style="margin-top:10px;font-size:14px;color:#6b7280">%s &nbsp;·&nbsp; Dispositivo %s</div>
+</div>
+<p style="color:#6b7280;font-size:14px">Te recomendamos revisar tu consumo para optimizar tu gasto energético.</p>
+<p><a href="https://electricautomaticchile.com/cliente" style="background:#f97316;color:white;padding:12px 30px;text-decoration:none;border-radius:8px;font-weight:bold;display:inline-block">Ver Mi Consumo</a></p>
+</div>
+<p style="text-align:center;color:#9ca3af;font-size:11px;margin-top:15px">Electricautomaticchile · Este es un correo automático, no responder.</p>
+</div>
+</body></html>`, nombreCliente, costoStr, energiaStr, data.DeviceID)
+
+			textBody := fmt.Sprintf("Hola %s, tu consumo eléctrico ha alcanzado %s (%s). Revisa tu consumo en https://electricautomaticchile.com/cliente - Electricautomaticchile",
+				nombreCliente, costoStr, energiaStr)
+
+			if err := emailService.EnviarEmail([]string{correo}, subject, htmlBody, textBody); err != nil {
+				log.Printf("❌ Error enviando email de consumo a %s: %v", correo, err)
+			} else {
+				log.Printf("✅ Email de consumo enviado a %s (%s)", correo, costoStr)
+			}
+		}()
+	}
 }
 
 func (sb *SerialBridge) saveReading(data *ArduinoData) {
