@@ -133,7 +133,6 @@ func (h *Hub) BroadcastToCliente(clienteID string, msg Message) {
 	if !ok {
 		return
 	}
-	log.Printf("📡 WS → clienteID=%q (%d conexión/es)", clienteID, len(clients))
 
 	data, err := json.Marshal(msg)
 	if err != nil {

@@ -589,9 +589,6 @@ func (sb *SerialBridge) sendToWebSocket(data *ArduinoData) {
 		ClienteID: device.ClienteID,
 	}
 
-	log.Printf("📡 WS broadcast — device: %s, clienteID: %q, energia: %.3f, costo: %.2f",
-		data.DeviceID, device.ClienteID, data.Energy, data.Cost)
-
 	sent := false
 	if device.ClienteID != "" {
 		sb.hub.BroadcastToCliente(device.ClienteID, msg)
@@ -602,7 +599,7 @@ func (sb *SerialBridge) sendToWebSocket(data *ArduinoData) {
 		sent = true
 	}
 	if !sent {
-		log.Printf("⚠️  Dispositivo %s sin clienteId/empresaId — datos guardados en DB pero no enviados por WS", data.DeviceID)
+		// Dispositivo sin asignar — datos guardados en DB pero no enviados por WS
 	}
 }
 
