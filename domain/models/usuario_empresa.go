@@ -7,7 +7,7 @@ type UsuarioEmpresaModel struct {
 	EmpresaID          string    `json:"empresaId"`
 	Nombre             string    `json:"nombre"`
 	Email              string    `json:"email"`
-	Password           string    `json:"password,omitempty"`
+	Password           string    `json:"-"` // No exponer hash en JSON
 	Role               string    `json:"role"`
 	Telefono           string    `json:"telefono,omitempty"`
 	Cargo              string    `json:"cargo,omitempty"`
