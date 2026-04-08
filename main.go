@@ -84,7 +84,8 @@ func main() {
 	}
 
 	// 7. Services (build container)
-	svc := services.Build(repos, wsHub, emailSvc, snsSvc, s3Svc)
+	ext := &services.ExternalDeps{WSHub: wsHub, EmailSvc: emailSvc, SMSSvc: snsSvc, S3Svc: s3Svc}
+	svc := services.Build(repos, ext)
 
 	// 8. Facades (build container)
 	fc := facades.Build(svc)

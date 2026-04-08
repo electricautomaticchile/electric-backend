@@ -3,6 +3,7 @@ package controllers
 import (
 	"electric-backend/domain/models"
 	"electric-backend/domain/services"
+	"electric-backend/infrastructure/middleware"
 	"electric-backend/types"
 	"net/http"
 	"strconv"
@@ -18,6 +19,19 @@ func NewTarifaController(tarifaService *services.TarifaService) *TarifaControlle
 	return &TarifaController{
 		tarifaService: tarifaService,
 	}
+}
+
+// SetupRoutes configura las rutas del controlador
+func (c *TarifaController) SetupRoutes(router *gin.RouterGroup) {
+	g := router.Group("/tarifas")
+	g.Use(middleware.AuthMiddleware())
+	g.GET("", c.ObtenerTodas)
+	g.GET("/activa", c.ObtenerActiva)
+	g.GET("/:id", c.ObtenerPorID)
+	g.POST("", c.Crear)
+	g.PUT("/:id", c.Actualizar)
+	g.DELETE("/:id", c.Eliminar)
+	g.POST("/calcular", c.CalcularConsumo)
 }
 
 func (c *TarifaController) Crear(gctx *gin.Context) {

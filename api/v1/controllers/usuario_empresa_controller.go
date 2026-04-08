@@ -4,6 +4,7 @@ import (
 	"electric-backend/api/v1/recipe"
 	"electric-backend/domain/models"
 	"electric-backend/domain/services"
+	"electric-backend/infrastructure/middleware"
 	"electric-backend/types"
 	"net/http"
 	"strconv"
@@ -19,6 +20,17 @@ func NewUsuarioEmpresaController(usuarioService *services.UsuarioEmpresaService)
 	return &UsuarioEmpresaController{
 		usuarioService: usuarioService,
 	}
+}
+
+// SetupRoutes configura las rutas del controlador (con AuthMiddleware + CSRFMiddleware)
+func (ctrl *UsuarioEmpresaController) SetupRoutes(router *gin.RouterGroup) {
+	g := router.Group("/usuarios-empresa")
+	g.Use(middleware.AuthMiddleware(), middleware.CSRFMiddleware())
+	g.GET("", ctrl.ObtenerTodos)
+	g.GET("/:id", ctrl.ObtenerPorID)
+	g.POST("", ctrl.Crear)
+	g.PUT("/:id", ctrl.Actualizar)
+	g.DELETE("/:id", ctrl.Eliminar)
 }
 
 func (ctrl *UsuarioEmpresaController) ObtenerTodos(gctx *gin.Context) {

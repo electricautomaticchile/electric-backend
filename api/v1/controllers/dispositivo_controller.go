@@ -4,6 +4,7 @@ import (
 	"electric-backend/api/v1/recipe"
 	"electric-backend/domain/facades"
 	"electric-backend/domain/models"
+	"electric-backend/infrastructure/middleware"
 	"electric-backend/types"
 	"net/http"
 	"strconv"
@@ -19,6 +20,27 @@ func NewDispositivoController(dispositivoFacade *facades.DispositivoFacade) *Dis
 	return &DispositivoController{
 		dispositivoFacade: dispositivoFacade,
 	}
+}
+
+// SetupRoutes configura las rutas CRUD del controlador (con AuthMiddleware)
+func (ctrl *DispositivoController) SetupRoutes(router *gin.RouterGroup) {
+	g := router.Group("/dispositivos")
+	g.Use(middleware.AuthMiddleware())
+	g.GET("", ctrl.ObtenerTodos)
+	g.GET("/:id", ctrl.ObtenerPorID)
+	g.POST("", ctrl.Crear)
+	g.PUT("/:id", ctrl.Actualizar)
+	g.PUT("/:id/asignar", ctrl.AsignarCliente)
+	g.PUT("/:id/desasignar", ctrl.DesasignarCliente)
+	g.DELETE("/:id", ctrl.Eliminar)
+}
+
+// SetupIoTRoutes configura las rutas IoT (con IoTAPIKeyMiddleware)
+func (ctrl *DispositivoController) SetupIoTRoutes(router *gin.RouterGroup) {
+	g := router.Group("/iot")
+	g.Use(middleware.IoTAPIKeyMiddleware())
+	g.POST("/lectura", ctrl.RecibirLecturaIoT)
+	g.POST("/comando-ejecutado", ctrl.ComandoEjecutado)
 }
 
 func (ctrl *DispositivoController) ObtenerTodos(gctx *gin.Context) {

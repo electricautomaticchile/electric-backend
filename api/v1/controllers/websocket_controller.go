@@ -46,6 +46,13 @@ func NewWebSocketController(hub *websocket.Hub) *WebSocketController {
 	return &WebSocketController{hub: hub}
 }
 
+// SetupRoutes configura las rutas del controlador (sin middleware, auth se maneja internamente)
+func (ctrl *WebSocketController) SetupRoutes(router *gin.RouterGroup) {
+	g := router.Group("/ws")
+	g.GET("/connect", ctrl.HandleWebSocket)
+	g.GET("/stats", ctrl.GetStats)
+}
+
 func (ctrl *WebSocketController) HandleWebSocket(gctx *gin.Context) {
 
 	// Obtener token: cookie primero (más seguro), luego query param, luego header

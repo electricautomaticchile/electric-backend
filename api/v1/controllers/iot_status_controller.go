@@ -2,6 +2,7 @@ package controllers
 
 import (
 	"electric-backend/infrastructure/data"
+	"electric-backend/infrastructure/middleware"
 	"net/http"
 	"time"
 
@@ -14,6 +15,13 @@ type IoTStatusController struct {
 
 func NewIoTStatusController(dispositivoRepo *data.DispositivoRepository) *IoTStatusController {
 	return &IoTStatusController{dispositivoRepo: dispositivoRepo}
+}
+
+// SetupRoutes configura las rutas del controlador
+func (ctrl *IoTStatusController) SetupRoutes(router *gin.RouterGroup) {
+	g := router.Group("/v1/iot")
+	g.Use(middleware.AuthMiddleware())
+	g.GET("/status", ctrl.GetAllStatus)
 }
 
 type DeviceStatus struct {

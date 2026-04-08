@@ -2,6 +2,7 @@ package controllers
 
 import (
 	"electric-backend/domain/services"
+	"electric-backend/infrastructure/middleware"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -15,6 +16,15 @@ func NewEstadisticaController(dashboardService *services.DashboardService) *Esta
 	return &EstadisticaController{
 		dashboardService: dashboardService,
 	}
+}
+
+// SetupRoutes configura las rutas del controlador
+func (ctrl *EstadisticaController) SetupRoutes(router *gin.RouterGroup) {
+	g := router.Group("/estadisticas")
+	g.Use(middleware.AuthMiddleware())
+	g.GET("/cliente/:clienteId", ctrl.ObtenerConsumoCliente)
+	g.GET("/globales", ctrl.ObtenerEstadisticasGlobales)
+	g.GET("/resumen", ctrl.ObtenerResumen)
 }
 
 func (ctrl *EstadisticaController) ObtenerConsumoCliente(gctx *gin.Context) {

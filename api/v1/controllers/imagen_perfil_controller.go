@@ -2,6 +2,7 @@ package controllers
 
 import (
 	"electric-backend/domain/services"
+	"electric-backend/infrastructure/middleware"
 	"electric-backend/types"
 	"net/http"
 
@@ -16,6 +17,15 @@ func NewImagenPerfilController(service *services.ImagenPerfilService) *ImagenPer
 	return &ImagenPerfilController{
 		service: service,
 	}
+}
+
+// SetupRoutes configura las rutas del controlador
+func (ctrl *ImagenPerfilController) SetupRoutes(router *gin.RouterGroup) {
+	g := router.Group("/imagenes-perfil")
+	g.Use(middleware.AuthMiddleware())
+	g.POST("/:tipoUsuario/:userId/upload", ctrl.SubirYActualizarImagen)
+	g.GET("/:tipoUsuario/:userId", ctrl.ObtenerImagenPerfil)
+	g.DELETE("/:tipoUsuario/:userId", ctrl.EliminarImagenPerfil)
 }
 
 func (ctrl *ImagenPerfilController) SubirYActualizarImagen(gctx *gin.Context) {

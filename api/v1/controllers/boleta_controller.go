@@ -3,6 +3,7 @@ package controllers
 import (
 	"electric-backend/api/v1/recipe"
 	"electric-backend/domain/services"
+	"electric-backend/infrastructure/middleware"
 	"electric-backend/types"
 	"net/http"
 
@@ -17,6 +18,14 @@ func NewBoletaController(boletaService *services.BoletaService) *BoletaControlle
 	return &BoletaController{
 		boletaService: boletaService,
 	}
+}
+
+// SetupRoutes configura las rutas del controlador
+func (ctrl *BoletaController) SetupRoutes(router *gin.RouterGroup) {
+	g := router.Group("/boletas")
+	g.Use(middleware.AuthMiddleware())
+	g.GET("/cliente/:clienteId", ctrl.ObtenerPorCliente)
+	g.POST("", ctrl.Crear)
 }
 
 func (ctrl *BoletaController) ObtenerPorCliente(gctx *gin.Context) {

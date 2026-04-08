@@ -4,6 +4,7 @@ import (
 	"electric-backend/api/v1/recipe"
 	"electric-backend/domain/models"
 	"electric-backend/domain/services"
+	"electric-backend/infrastructure/middleware"
 	"electric-backend/types"
 	"net/http"
 	"strconv"
@@ -19,6 +20,20 @@ func NewTicketController(ticketService *services.TicketService) *TicketControlle
 	return &TicketController{
 		ticketService: ticketService,
 	}
+}
+
+// SetupRoutes configura las rutas del controlador
+func (ctrl *TicketController) SetupRoutes(router *gin.RouterGroup) {
+	g := router.Group("/tickets")
+	g.Use(middleware.AuthMiddleware())
+	g.GET("", ctrl.ObtenerTodos)
+	g.GET("/:id", ctrl.ObtenerPorID)
+	g.GET("/cliente/:clienteId", ctrl.ObtenerPorCliente)
+	g.GET("/empresa/:empresaId", ctrl.ObtenerPorEmpresa)
+	g.POST("", ctrl.Crear)
+	g.PUT("/:id/responder", ctrl.AgregarRespuesta)
+	g.PUT("/:id/estado", ctrl.ActualizarEstado)
+	g.DELETE("/:id", ctrl.Eliminar)
 }
 
 func (ctrl *TicketController) ObtenerTodos(gctx *gin.Context) {

@@ -30,29 +30,37 @@ type ServiceContainer struct {
 	IAService              *IAService
 }
 
-func Build(repos *data.DataContainer, wsHub *websocket.Hub, emailSvc email.EmailService, smsSvc sms.SMSService, s3Svc *aws.S3Service) *ServiceContainer {
-	wsNotifier := NewWebSocketNotifierService(wsHub)
+// ExternalDeps groups external service dependencies.
+type ExternalDeps struct {
+	WSHub    *websocket.Hub
+	EmailSvc email.EmailService
+	SMSSvc   sms.SMSService
+	S3Svc    *aws.S3Service
+}
 
-	authService := NewAuthService(repos.EmpresaRepo, repos.ClienteRepo, repos.UsuarioEmpresaRepo, repos.RecoveryTokenRepo, repos.RefreshTokenRepo, emailSvc)
-	clienteService := NewClienteService(repos.ClienteRepo, emailSvc)
+func Build(repos *data.DataContainer, ext *ExternalDeps) *ServiceContainer {
+	wsNotifier := NewWebSocketNotifierService(ext.WSHub)
+
+	authService := NewAuthService(repos.EmpresaRepo, repos.ClienteRepo, repos.UsuarioEmpresaRepo, repos.RecoveryTokenRepo, repos.RefreshTokenRepo, ext.EmailSvc)
+	clienteService := NewClienteService(repos.ClienteRepo, ext.EmailSvc)
 	empresaService := NewEmpresaService(repos.EmpresaRepo)
 	dispositivoService := NewDispositivoService(repos.DispositivoRepo, repos.ClienteRepo, wsNotifier)
 	notificacionService := NewNotificacionService(repos.NotificacionRepo, wsNotifier)
-	boletaService := NewBoletaService(repos.BoletaRepo, repos.ClienteRepo, emailSvc)
-	ticketService := NewTicketService(repos.TicketRepo, repos.NotificacionRepo, emailSvc, repos.ClienteRepo, repos.EmpresaRepo)
+	boletaService := NewBoletaService(repos.BoletaRepo, repos.ClienteRepo, ext.EmailSvc)
+	ticketService := NewTicketService(repos.TicketRepo, repos.NotificacionRepo, ext.EmailSvc, repos.ClienteRepo, repos.EmpresaRepo)
 	cotizacionService := NewCotizacionService(repos.CotizacionRepo)
-	monitoreoService := NewMonitoreoService(repos.NotificacionRepo, repos.DispositivoRepo, repos.ClienteRepo, repos.EmpresaRepo, emailSvc, smsSvc)
+	monitoreoService := NewMonitoreoService(repos.NotificacionRepo, repos.DispositivoRepo, repos.ClienteRepo, repos.EmpresaRepo, ext.EmailSvc, ext.SMSSvc)
 	tarifaService := NewTarifaService(repos.TarifaRepo)
 	consumoService := NewConsumoService(repos.ClienteRepo, repos.TarifaRepo)
 	dashboardService := NewDashboardService(repos.ClienteRepo, repos.DispositivoRepo, repos.NotificacionRepo, repos.TicketRepo, repos.EstadisticaRepo)
 	reportesService := NewReportesService(repos.ClienteRepo, repos.DispositivoRepo, repos.NotificacionRepo, repos.BoletaRepo)
-	usuarioEmpresaService := NewUsuarioEmpresaService(repos.UsuarioEmpresaRepo, emailSvc)
-	notificacionSMSService := NewNotificacionSMSService(repos.ClienteRepo, repos.BoletaRepo, repos.DispositivoRepo, smsSvc)
+	usuarioEmpresaService := NewUsuarioEmpresaService(repos.UsuarioEmpresaRepo, ext.EmailSvc)
+	notificacionSMSService := NewNotificacionSMSService(repos.ClienteRepo, repos.BoletaRepo, repos.DispositivoRepo, ext.SMSSvc)
 	auditLogService := NewAuditLogService(repos.AuditLogRepo)
 
 	var imagenPerfilService *ImagenPerfilService
-	if s3Svc != nil {
-		imagenPerfilService = NewImagenPerfilService(repos.ClienteRepo, repos.EmpresaRepo, s3Svc)
+	if ext.S3Svc != nil {
+		imagenPerfilService = NewImagenPerfilService(repos.ClienteRepo, repos.EmpresaRepo, ext.S3Svc)
 	}
 
 	return &ServiceContainer{

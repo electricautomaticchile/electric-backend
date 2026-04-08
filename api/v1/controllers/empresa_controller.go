@@ -3,6 +3,7 @@ package controllers
 import (
 	"electric-backend/api/v1/recipe"
 	"electric-backend/domain/facades"
+	"electric-backend/infrastructure/middleware"
 	"electric-backend/infrastructure/validation"
 	"electric-backend/types"
 	"net/http"
@@ -18,6 +19,17 @@ func NewEmpresaController(empresaFacade *facades.EmpresaFacade) *EmpresaControll
 	return &EmpresaController{
 		empresaFacade: empresaFacade,
 	}
+}
+
+// SetupRoutes configura las rutas del controlador
+func (ctrl *EmpresaController) SetupRoutes(router *gin.RouterGroup) {
+	g := router.Group("/empresas")
+	g.Use(middleware.AuthMiddleware())
+	g.GET("", ctrl.ObtenerTodas)
+	g.GET("/:id", ctrl.ObtenerPorID)
+	g.POST("", ctrl.Crear)
+	g.PUT("/:id", ctrl.Actualizar)
+	g.DELETE("/:id", ctrl.Eliminar)
 }
 
 func (ctrl *EmpresaController) ObtenerTodas(gctx *gin.Context) {

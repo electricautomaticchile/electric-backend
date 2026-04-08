@@ -2,6 +2,7 @@ package controllers
 
 import (
 	"electric-backend/domain/services"
+	"electric-backend/infrastructure/middleware"
 	"electric-backend/types"
 	"net/http"
 	"time"
@@ -23,6 +24,17 @@ type ReportesController struct {
 
 func NewReportesController(service *services.ReportesService) *ReportesController {
 	return &ReportesController{service: service}
+}
+
+// SetupRoutes configura las rutas del controlador
+func (c *ReportesController) SetupRoutes(router *gin.RouterGroup) {
+	g := router.Group("/reportes")
+	g.Use(middleware.AuthMiddleware())
+	g.GET("/clientes", c.Clientes)
+	g.GET("/dispositivos", c.Dispositivos)
+	g.GET("/alertas", c.Alertas)
+	g.GET("/boletas", c.Boletas)
+	g.GET("/consumo", c.Consumo)
 }
 
 func (c *ReportesController) empresaID(gctx *gin.Context) (string, bool) {

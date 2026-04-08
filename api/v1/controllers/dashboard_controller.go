@@ -2,6 +2,7 @@ package controllers
 
 import (
 	"electric-backend/domain/services"
+	"electric-backend/infrastructure/middleware"
 	"electric-backend/types"
 	"net/http"
 
@@ -16,6 +17,13 @@ func NewDashboardController(dashboardService *services.DashboardService) *Dashbo
 	return &DashboardController{
 		dashboardService: dashboardService,
 	}
+}
+
+// SetupRoutes configura las rutas del controlador
+func (ctrl *DashboardController) SetupRoutes(router *gin.RouterGroup) {
+	g := router.Group("/dashboard")
+	g.Use(middleware.AuthMiddleware())
+	g.GET("/estadisticas", ctrl.ObtenerEstadisticas)
 }
 
 func (ctrl *DashboardController) ObtenerEstadisticas(gctx *gin.Context) {

@@ -2,6 +2,7 @@ package controllers
 
 import (
 	"electric-backend/domain/services"
+	"electric-backend/infrastructure/middleware"
 	"electric-backend/types"
 	"net/http"
 
@@ -16,6 +17,14 @@ func NewAntifraudeController(monitoreoService *services.MonitoreoService) *Antif
 	return &AntifraudeController{
 		monitoreoService: monitoreoService,
 	}
+}
+
+// SetupRoutes configura las rutas del controlador
+func (ctrl *AntifraudeController) SetupRoutes(router *gin.RouterGroup) {
+	g := router.Group("/antifraude")
+	g.Use(middleware.AuthMiddleware())
+	g.GET("/anomalias", ctrl.DetectarAnomalias)
+	g.GET("/estadisticas", ctrl.ObtenerEstadisticas)
 }
 
 func (ctrl *AntifraudeController) DetectarAnomalias(gctx *gin.Context) {

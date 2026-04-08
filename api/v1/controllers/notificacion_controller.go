@@ -2,6 +2,7 @@ package controllers
 
 import (
 	"electric-backend/domain/services"
+	"electric-backend/infrastructure/middleware"
 	"electric-backend/types"
 	"net/http"
 
@@ -16,6 +17,17 @@ func NewNotificacionController(notificacionService *services.NotificacionService
 	return &NotificacionController{
 		notificacionService: notificacionService,
 	}
+}
+
+// SetupRoutes configura las rutas del controlador
+func (ctrl *NotificacionController) SetupRoutes(router *gin.RouterGroup) {
+	g := router.Group("/notificaciones")
+	g.Use(middleware.AuthMiddleware())
+	g.GET("", ctrl.Listar)
+	g.PUT("/:id/marcar-leida", ctrl.MarcarLeida)
+	g.PUT("/marcar-todas-leidas", ctrl.MarcarTodasLeidas)
+	g.DELETE("/:id", ctrl.Eliminar)
+	g.GET("/estadisticas", ctrl.ObtenerEstadisticas)
 }
 
 func (ctrl *NotificacionController) Listar(gctx *gin.Context) {

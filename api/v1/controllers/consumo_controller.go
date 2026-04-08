@@ -3,6 +3,7 @@ package controllers
 import (
 	"electric-backend/domain/facades"
 	"electric-backend/domain/services"
+	"electric-backend/infrastructure/middleware"
 	"electric-backend/types"
 	"net/http"
 	"strconv"
@@ -21,6 +22,14 @@ func NewConsumoController(consumoService *services.ConsumoService, dispositivoFa
 		c.dispositivoFacade = dispositivoFacade[0]
 	}
 	return c
+}
+
+// SetupRoutes configura las rutas del controlador
+func (c *ConsumoController) SetupRoutes(router *gin.RouterGroup) {
+	g := router.Group("/consumo")
+	g.Use(middleware.AuthMiddleware())
+	g.GET("/cliente/:clienteId/calcular", c.CalcularCostoActual)
+	g.GET("/cliente/:clienteId/actual", c.ObtenerConsumoActual)
 }
 
 func (c *ConsumoController) CalcularCostoActual(gctx *gin.Context) {

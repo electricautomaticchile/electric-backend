@@ -2,6 +2,7 @@ package controllers
 
 import (
 	"electric-backend/domain/services"
+	"electric-backend/infrastructure/middleware"
 	"electric-backend/types"
 	"net/http"
 
@@ -18,6 +19,13 @@ func NewMapaController(dispositivoService *services.DispositivoService, clienteS
 		dispositivoService: dispositivoService,
 		clienteService:     clienteService,
 	}
+}
+
+// SetupRoutes configura las rutas del controlador
+func (ctrl *MapaController) SetupRoutes(router *gin.RouterGroup) {
+	g := router.Group("/mapa")
+	g.Use(middleware.AuthMiddleware())
+	g.GET("/datos", ctrl.ObtenerDatosMapa)
 }
 
 func (ctrl *MapaController) ObtenerDatosMapa(gctx *gin.Context) {

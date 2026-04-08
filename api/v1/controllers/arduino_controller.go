@@ -2,6 +2,7 @@ package controllers
 
 import (
 	"electric-backend/infrastructure/arduino"
+	"electric-backend/infrastructure/middleware"
 	"electric-backend/types"
 	"net/http"
 
@@ -16,6 +17,17 @@ func NewArduinoController(bridge *arduino.SerialBridge) *ArduinoController {
 	return &ArduinoController{
 		bridge: bridge,
 	}
+}
+
+// SetupRoutes configura las rutas del controlador
+func (ctrl *ArduinoController) SetupRoutes(router *gin.RouterGroup) {
+	g := router.Group("/arduino")
+	g.Use(middleware.AuthMiddleware())
+	g.GET("/status", ctrl.GetStatus)
+	g.GET("/ports", ctrl.ListPorts)
+	g.POST("/connect", ctrl.Connect)
+	g.POST("/disconnect", ctrl.Disconnect)
+	g.POST("/command", ctrl.SendCommand)
 }
 
 func (ctrl *ArduinoController) GetStatus(gctx *gin.Context) {
