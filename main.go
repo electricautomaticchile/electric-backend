@@ -2,7 +2,7 @@ package main
 
 import (
 	"context"
-	"electric-backend/api/v1/controllers"
+	"electric-backend/api/v1/server"
 	"electric-backend/config"
 	"electric-backend/domain/facades"
 	"electric-backend/domain/services"
@@ -10,17 +10,14 @@ import (
 	"electric-backend/infrastructure/aws"
 	"electric-backend/infrastructure/data"
 	"electric-backend/infrastructure/email"
-	"electric-backend/infrastructure/middleware"
 	"electric-backend/infrastructure/scheduler"
 	"electric-backend/infrastructure/sms"
 	"electric-backend/infrastructure/validation"
 	"electric-backend/infrastructure/websocket"
-	"electric-backend/types"
 	"log"
 	"net/http"
 	"os"
 	"os/signal"
-	"runtime"
 	"syscall"
 	"time"
 
@@ -31,559 +28,108 @@ import (
 )
 
 func main() {
-	// En ECS/Fargate los logs van por stdout → CloudWatch.
-	// Lumberjack solo se activa localmente para rotación de archivos.
+	// 1. Logging
 	if os.Getenv("NODE_ENV") != "production" {
 		log.SetOutput(&lumberjack.Logger{
-			Filename:   "./logs/electric-backend.log",
-			MaxSize:    50,
-			MaxBackups: 7,
-			MaxAge:     30,
-			Compress:   true,
+			Filename: "./logs/electric-backend.log", MaxSize: 50, MaxBackups: 7, MaxAge: 30, Compress: true,
 		})
 	}
-	// En producción log.Printf va a stdout (default de Go) → CloudWatch lo captura
 
+	// 2. Config + validators
 	config.LoadConfig()
-
 	if config.AppConfig.Environment == "production" {
 		gin.SetMode(gin.ReleaseMode)
 	}
+	registerValidators()
 
-	if v, ok := binding.Validator.Engine().(*validator.Validate); ok {
-		v.RegisterValidation("rut", func(fl validator.FieldLevel) bool {
-			return validation.ValidarRUT(fl.Field().String())
-		})
-		v.RegisterValidation("password_strong", func(fl validator.FieldLevel) bool {
-			return validation.ValidarPassword(fl.Field().String()) == nil
-		})
-		v.RegisterValidation("telefono_cl", func(fl validator.FieldLevel) bool {
-			return validation.ValidarTelefonoChileno(fl.Field().String())
-		})
-		v.RegisterValidation("periodo", func(fl validator.FieldLevel) bool {
-			return validation.ValidarPeriodo(fl.Field().String())
-		})
-		v.RegisterValidation("numero_cliente", func(fl validator.FieldLevel) bool {
-			return validation.ValidarNumeroCliente(fl.Field().String())
-		})
-	}
-
+	// 3. Databases
 	if err := config.ConnectDatabase(config.AppConfig.MongoURI); err != nil {
 		log.Fatalf("❌ Error conectando a MongoDB: %v", err)
 	}
 	defer config.DisconnectDatabase()
-
 	if err := config.CreateIndexes(config.MongoDB); err != nil {
 		log.Printf("⚠️ Error creando índices: %v", err)
 	}
-
-	// Conectar a Redis (ElastiCache o local)
-	if err := config.ConnectRedis(
-		config.AppConfig.RedisHost,
-		config.AppConfig.RedisPort,
-		config.AppConfig.RedisPassword,
-		config.AppConfig.RedisDB,
-	); err != nil {
-		log.Printf("⚠️ Redis no disponible: %v — rate limiter y CSRF usarán fallback en memoria", err)
+	if err := config.ConnectRedis(config.AppConfig.RedisHost, config.AppConfig.RedisPort, config.AppConfig.RedisPassword, config.AppConfig.RedisDB); err != nil {
+		log.Printf("⚠️ Redis no disponible: %v", err)
 	}
 	defer config.DisconnectRedis()
 
-	auditLogRepo := data.NewAuditLogRepository()
-	auditLogService := services.NewAuditLogService(auditLogRepo)
+	// 4. Repositorios (build container)
+	repos := data.Build()
 
-	router := gin.New()
-	// Logger que ignora rutas WebSocket (evita "response.Write on hijacked connection")
-	router.Use(gin.LoggerWithConfig(gin.LoggerConfig{
-		SkipPaths: []string{"/api/ws/connect"},
-	}))
-	router.Use(gin.Recovery())
-
-	router.Use(middleware.CORSMiddleware())
-	// HIGH-07: Limitar tamaño de request body a 10MB
-	router.Use(func(c *gin.Context) {
-		c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, 10<<20)
-		c.Next()
-	})
-	router.Use(middleware.CompressionMiddleware())
-	router.Use(middleware.AuditMiddleware(auditLogService))
-	router.Use(middleware.ErrorHandler())
-
-	rateLimits := map[string]int{
-		"POST:/api/auth/login":            5,
-		"POST:/api/auth/register":         3,
-		"POST:/api/auth/recovery":         3,
-		"POST:/api/auth/reset-password":   3,
-		"POST:/api/auth/cambiar-password": 10,
-		"POST:/api/auth/refresh-token":    20,
-
-		"GET:/api/clientes":        60,
-		"POST:/api/clientes":       20,
-		"PUT:/api/clientes/:id":    30,
-		"DELETE:/api/clientes/:id": 10,
-		"GET:/api/clientes/:id":    100,
-
-		"GET:/api/dispositivos":          120,
-		"POST:/api/dispositivos":         20,
-		"PUT:/api/dispositivos/:id":      60,
-		"POST:/api/dispositivos/lectura": 300,
-		"POST:/api/dispositivos/control": 30,
-
-		"GET:/api/alertas":        100,
-		"POST:/api/alertas":       50,
-		"PUT:/api/alertas/:id":    40,
-		"DELETE:/api/alertas/:id": 20,
-
-		"GET:/api/boletas":     60,
-		"POST:/api/boletas":    10,
-		"GET:/api/boletas/:id": 100,
-
-		"GET:/api/tickets":                60,
-		"POST:/api/tickets":               10,
-		"POST:/api/tickets/:id/responder": 20,
-		"PUT:/api/tickets/:id":            30,
-
-		"GET:/api/dashboard/empresa": 120,
-		"GET:/api/dashboard/cliente": 120,
-		"GET:/api/estadisticas/*":    100,
-
-		"GET:/api/reportes/*": 10,
-
-		"GET:/api/mapa/dispositivos":  60,
-		"GET:/api/mapa/ubicacion/:id": 100,
-		"POST:/api/mapa/actualizar":   30,
-
-		"GET:/api/tarifas":     30,
-		"POST:/api/tarifas":    5,
-		"PUT:/api/tarifas/:id": 10,
-
-		"POST:/api/imagenes-perfil/upload": 10,
-		"GET:/api/imagenes-perfil/:id":     100,
-		"DELETE:/api/imagenes-perfil/:id":  10,
-
-		// MED-07: Rate limiting para rutas IoT
-		// 250 dispositivos × 1 req/5s = 50 req/s = 3000 req/min por IP en pruebas
-		// En producción cada dispositivo tiene su propia IP (límite aplica por IP)
-		"POST:/api/iot/lectura":           3000,
-		"POST:/api/iot/comando-ejecutado": 500,
+	// 5. Servicios externos
+	emailSvc := email.NewSESService()
+	snsSvc, err := sms.NewSNSService()
+	if err != nil {
+		log.Printf("⚠️ SNS no disponible: %v", err)
+	}
+	s3Svc, err := aws.NewS3Service(config.AppConfig)
+	if err != nil {
+		log.Printf("⚠️ S3 no disponible: %v", err)
+		s3Svc = nil
 	}
 
-	router.Use(middleware.EndpointRateLimitMiddleware(rateLimits))
-
+	// 6. WebSocket + Arduino
 	wsHub := websocket.InitializeHub()
-
 	go wsHub.Run()
-
 	arduinoBridge := arduino.NewSerialBridge(wsHub)
-
 	if os.Getenv("ARDUINO_ENABLED") == "true" {
 		go func() {
 			time.Sleep(2 * time.Second)
-			port := os.Getenv("ARDUINO_PORT") // ej: COM6, /dev/ttyUSB0
-			if err := arduinoBridge.Connect(port); err != nil {
-				log.Printf("⚠️ No se pudo conectar al Arduino: %v", err)
-				log.Printf("💡 El servidor continuará sin Arduino. Para conectar: reinicia con Arduino conectado")
+			if err := arduinoBridge.Connect(os.Getenv("ARDUINO_PORT")); err != nil {
+				log.Printf("⚠️ Arduino: %v", err)
 			}
 		}()
-	} else {
-		log.Printf("ℹ️ Arduino deshabilitado. Para habilitar: ARDUINO_ENABLED=true")
 	}
 
-	// HIGH-05: Health check público con métricas de memoria y CPU
-	router.GET("/health", func(c *gin.Context) {
-		var memStats runtime.MemStats
-		runtime.ReadMemStats(&memStats)
-		c.JSON(http.StatusOK, gin.H{
-			"status":    "ok",
-			"timestamp": time.Now().UTC(),
-			"memory": gin.H{
-				"alloc_mb":       memStats.Alloc / 1024 / 1024,
-				"total_alloc_mb": memStats.TotalAlloc / 1024 / 1024,
-				"sys_mb":         memStats.Sys / 1024 / 1024,
-				"gc_cycles":      memStats.NumGC,
-			},
-			"goroutines": runtime.NumGoroutine(),
-		})
-	})
+	// 7. Services (build container)
+	svc := services.Build(repos, wsHub, emailSvc, snsSvc, s3Svc)
 
-	// Health check detallado protegido por auth
-	router.GET("/api/admin/health", middleware.AuthMiddleware(), middleware.RequireRole("empresa", "admin"), func(c *gin.Context) {
-		c.JSON(http.StatusOK, gin.H{
-			"status":      "OK",
-			"message":     "API Electricautomaticchile funcionando correctamente",
-			"timestamp":   time.Now().Format(time.RFC3339),
-			"version":     "2.0.0",
-			"environment": config.AppConfig.Environment,
-			"database": gin.H{
-				"connected": config.MongoDB != nil,
-			},
-			"redis": gin.H{
-				"connected": config.RedisClient != nil,
-			},
-			"websocket": gin.H{
-				"clients": wsHub.GetConnectedClients(),
-			},
-			"arduino": gin.H{
-				"connected": arduinoBridge.IsConnected(),
-				"devices":   len(arduinoBridge.GetDevices()),
-			},
-		})
-	})
+	// 8. Facades (build container)
+	fc := facades.Build(svc)
 
-	// Inicializar repositorios
-	recoveryTokenRepo := data.NewRecoveryTokenRepository()
-	clienteRepo := data.NewClienteRepository()
-	empresaRepo := data.NewEmpresaRepository()
-	dispositivoRepo := data.NewDispositivoRepository()
-	notificacionRepo := data.NewNotificacionRepository()
-	boletaRepo := data.NewBoletaRepository()
-	ticketRepo := data.NewTicketRepository()
-	estadisticaRepo := data.NewEstadisticaRepository()
-	cotizacionRepo := data.NewCotizacionRepository()
-	tarifaRepo := data.NewTarifaRepository()
+	// 9. Scheduler
+	notifScheduler := scheduler.NewNotificacionesScheduler(svc.NotificacionSMSService)
+	notifScheduler.Iniciar()
 
-	wsNotifierService := services.NewWebSocketNotifierService(wsHub)
-	emailService := email.NewSESService()
-	dashboardService := services.NewDashboardService(clienteRepo, dispositivoRepo, notificacionRepo, ticketRepo, estadisticaRepo)
+	// 10. Monitoreo automático
+	go svc.MonitoreoService.IniciarMonitoreoAutomatico(context.Background())
 
-	s3Service, err := aws.NewS3Service(config.AppConfig)
-	if err != nil {
-		log.Printf("⚠️ S3 no disponible: %v", err)
-		s3Service = nil
-	} else {
-		log.Printf("✅ S3 inicializado correctamente")
-	}
+	// 11. Router (server.go maneja rutas y middleware)
+	router := server.SetupRouter(fc, svc, repos, wsHub, arduinoBridge)
 
-	var imagenPerfilService *services.ImagenPerfilService
-	if s3Service != nil {
-		imagenPerfilService = services.NewImagenPerfilService(clienteRepo, empresaRepo, s3Service)
-		log.Printf("✅ Servicio de imágenes de perfil habilitado")
-	} else {
-		log.Printf("⚠️ Servicio de imágenes de perfil deshabilitado (S3 no configurado)")
-	}
-
-	reportesService := services.NewReportesService(clienteRepo, dispositivoRepo, notificacionRepo, boletaRepo)
-
-	usuarioEmpresaRepo := data.NewUsuarioEmpresaRepository()
-	usuarioEmpresaService := services.NewUsuarioEmpresaService(usuarioEmpresaRepo, emailService)
-
-	refreshTokenRepo := data.NewRefreshTokenRepository()
-	clienteService := services.NewClienteService(clienteRepo, emailService)
-	empresaService := services.NewEmpresaService(empresaRepo)
-	dispositivoService := services.NewDispositivoService(dispositivoRepo, clienteRepo, wsNotifierService)
-	notificacionService := services.NewNotificacionService(notificacionRepo, wsNotifierService)
-	boletaService := services.NewBoletaService(boletaRepo, clienteRepo, emailService)
-	ticketService := services.NewTicketService(ticketRepo, notificacionRepo, emailService, clienteRepo, empresaRepo)
-	cotizacionService := services.NewCotizacionService(cotizacionRepo)
-
-	// Mejora #8: Migrar Infobip → SNS
-	snsService, snsErr := sms.NewSNSService()
-	if snsErr != nil {
-		log.Printf("⚠️ SNS no disponible: %v — notificaciones SMS deshabilitadas", snsErr)
-	}
-
-	alertaAutomaticaService := services.NewMonitoreoService(notificacionRepo, dispositivoRepo, clienteRepo, empresaRepo, emailService, snsService)
-	monitoreoService := alertaAutomaticaService
-	tarifaService := services.NewTarifaService(tarifaRepo)
-	consumoService := services.NewConsumoService(clienteRepo, tarifaRepo)
-
-	notificacionSMSService := services.NewNotificacionSMSService(clienteRepo, boletaRepo, dispositivoRepo, snsService)
-	notificacionesScheduler := scheduler.NewNotificacionesScheduler(notificacionSMSService)
-	notificacionesScheduler.Iniciar()
-	log.Printf("✅ Scheduler de notificaciones SMS iniciado")
-
-	// Inicializar facades
-	authFacade := facades.NewAuthFacade(services.NewAuthService(empresaRepo, clienteRepo, usuarioEmpresaRepo, recoveryTokenRepo, refreshTokenRepo, emailService))
-	clienteFacade := facades.NewClienteFacade(clienteService)
-	empresaFacade := facades.NewEmpresaFacade(empresaService)
-	dispositivoFacade := facades.NewDispositivoFacade(dispositivoService)
-	cotizacionFacade := facades.NewCotizacionFacade(cotizacionService)
-
-	iaService := services.NewIAService()
-
-	authController := controllers.NewAuthController(authFacade)
-	usuarioEmpresaController := controllers.NewUsuarioEmpresaController(usuarioEmpresaService)
-	clienteController := controllers.NewClienteController(clienteFacade)
-	empresaController := controllers.NewEmpresaController(empresaFacade)
-	dispositivoController := controllers.NewDispositivoController(dispositivoFacade)
-	notificacionController := controllers.NewNotificacionController(notificacionService)
-	boletaController := controllers.NewBoletaController(boletaService)
-	ticketController := controllers.NewTicketController(ticketService)
-	estadisticaController := controllers.NewEstadisticaController(dashboardService)
-	cotizacionController := controllers.NewCotizacionController(cotizacionFacade)
-	wsController := controllers.NewWebSocketController(wsHub)
-	arduinoController := controllers.NewArduinoController(arduinoBridge)
-	dashboardClienteController := controllers.NewDashboardClienteController(clienteFacade, dispositivoFacade, boletaService, dashboardService, arduinoBridge)
-	reportesController := controllers.NewReportesController(reportesService)
-	mapaController := controllers.NewMapaController(dispositivoService, clienteService)
-	antifraudeController := controllers.NewAntifraudeController(monitoreoService)
-	dashboardController := controllers.NewDashboardController(dashboardService)
-	tarifaController := controllers.NewTarifaController(tarifaService)
-	consumoController := controllers.NewConsumoController(consumoService)
-	iaController := controllers.NewIAController(iaService)
-	historialConsumoController := controllers.NewHistorialConsumoController()
-
-	api := router.Group("/api")
-	{
-		authController.SetupRoutes(api)
-		dashboardClienteController.SetupRoutes(api) // mi-dispositivo debe ir antes que /:id de clientes
-		clienteController.SetupRoutes(api)
-		cotizacionController.SetupRoutes(api)
-		historialConsumoController.SetupRoutes(api)
-		iaController.SetupRoutes(api)
-
-		if imagenPerfilService != nil {
-			imagenPerfilController := controllers.NewImagenPerfilController(imagenPerfilService)
-			setupImagenPerfilRoutes(api, imagenPerfilController)
-		}
-
-		// HIGH-03: Aplicar CSRF middleware en rutas sensibles
-		usuariosEmpresa := api.Group("/usuarios-empresa")
-		usuariosEmpresa.Use(middleware.AuthMiddleware())
-		usuariosEmpresa.Use(middleware.CSRFMiddleware())
-		{
-			usuariosEmpresa.GET("", usuarioEmpresaController.ObtenerTodos)
-			usuariosEmpresa.GET("/:id", usuarioEmpresaController.ObtenerPorID)
-			usuariosEmpresa.POST("", usuarioEmpresaController.Crear)
-			usuariosEmpresa.PUT("/:id", usuarioEmpresaController.Actualizar)
-			usuariosEmpresa.DELETE("/:id", usuarioEmpresaController.Eliminar)
-		}
-
-		ws := api.Group("/ws")
-		{
-			ws.GET("/connect", wsController.HandleWebSocket)
-			ws.GET("/stats", wsController.GetStats)
-		}
-
-		arduino := api.Group("/arduino")
-		arduino.Use(middleware.AuthMiddleware())
-		{
-			arduino.GET("/status", arduinoController.GetStatus)
-			arduino.GET("/ports", arduinoController.ListPorts)
-			arduino.POST("/connect", arduinoController.Connect)
-			arduino.POST("/disconnect", arduinoController.Disconnect)
-			arduino.POST("/command", arduinoController.SendCommand)
-		}
-
-		setupEmpresaRoutes(api, empresaController)
-		setupDispositivoRoutes(api, dispositivoController)
-		setupNotificacionRoutes(api, notificacionController)
-		setupBoletaRoutes(api, boletaController)
-		setupTicketRoutes(api, ticketController)
-		setupEstadisticaRoutes(api, estadisticaController)
-		setupReportesRoutes(api, reportesController)
-		setupMapaRoutes(api, mapaController)
-		setupAntifraudeRoutes(api, antifraudeController)
-		setupDashboardRoutes(api, dashboardController)
-		setupTarifaRoutes(api, tarifaController)
-		setupConsumoRoutes(api, consumoController)
-
-		// CRIT-02: Rutas IoT con autenticación por API Key
-		iot := api.Group("/iot")
-		iot.Use(middleware.IoTAPIKeyMiddleware())
-		{
-			iot.POST("/lectura", dispositivoController.RecibirLecturaIoT)
-			iot.POST("/comando-ejecutado", dispositivoController.ComandoEjecutado)
-		}
-
-		// Mejora #13: Endpoint /api/v1/iot/status (protegido por JWT, no por API Key IoT)
-		iotStatus := api.Group("/v1/iot")
-		iotStatus.Use(middleware.AuthMiddleware())
-		{
-			iotStatusController := controllers.NewIoTStatusController(dispositivoRepo)
-			iotStatus.GET("/status", iotStatusController.GetAllStatus)
-		}
-	}
-
-	ctx := context.Background()
-	go alertaAutomaticaService.IniciarMonitoreoAutomatico(ctx)
-
-	// Ruta 404
-	router.NoRoute(func(c *gin.Context) {
-		c.JSON(http.StatusNotFound, types.ApiResponse{
-			Success: false,
-			Error:   "Ruta no encontrada",
-		})
-	})
-
-	// Iniciar servidor
+	// 12. Start server
 	port := config.AppConfig.Port
-	log.Printf("✅ Servidor corriendo en puerto %s", port)
-	log.Printf("🌍 Entorno: %s", config.AppConfig.Environment)
-	log.Printf("📡 API disponible en: http://localhost:%s/api", port)
-
-	// Graceful shutdown
-	srv := &http.Server{
-		Addr:    ":" + port,
-		Handler: router,
-	}
-
+	log.Printf("✅ Servidor en puerto %s (%s)", port, config.AppConfig.Environment)
+	srv := &http.Server{Addr: ":" + port, Handler: router}
 	go func() {
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			log.Fatalf("❌ Error iniciando servidor: %v", err)
+			log.Fatalf("❌ %v", err)
 		}
 	}()
 
+	// 13. Graceful shutdown
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	<-quit
-
-	log.Println("🛑 Apagando servidor...")
-
-	// LOW-03: Graceful shutdown con timeout de 45 segundos
-	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 45*time.Second)
-	defer shutdownCancel()
-
-	notificacionesScheduler.Detener()
-	log.Println("✅ Scheduler de notificaciones detenido")
-
+	log.Println("🛑 Apagando...")
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+	defer cancel()
+	notifScheduler.Detener()
 	arduinoBridge.Disconnect()
-	log.Println("✅ Arduino desconectado")
-
-	if err := srv.Shutdown(shutdownCtx); err != nil {
-		log.Printf("⚠️ Error en shutdown del servidor: %v", err)
-	}
-	log.Println("✅ Servidor apagado correctamente")
+	srv.Shutdown(shutdownCtx)
+	log.Println("✅ Servidor apagado")
 }
 
-// Funciones temporales de rutas (mover a controladores después)
-func setupEmpresaRoutes(router *gin.RouterGroup, ctrl *controllers.EmpresaController) {
-	empresas := router.Group("/empresas")
-	empresas.Use(middleware.AuthMiddleware())
-	{
-		empresas.GET("", ctrl.ObtenerTodas)
-		empresas.GET("/:id", ctrl.ObtenerPorID)
-		empresas.POST("", ctrl.Crear)
-		empresas.PUT("/:id", ctrl.Actualizar)
-		empresas.DELETE("/:id", ctrl.Eliminar)
+func registerValidators() {
+	v, ok := binding.Validator.Engine().(*validator.Validate)
+	if !ok {
+		return
 	}
-}
-
-func setupDispositivoRoutes(router *gin.RouterGroup, ctrl *controllers.DispositivoController) {
-	dispositivos := router.Group("/dispositivos")
-	dispositivos.Use(middleware.AuthMiddleware())
-	{
-		dispositivos.GET("", ctrl.ObtenerTodos)
-		dispositivos.GET("/:id", ctrl.ObtenerPorID)
-		dispositivos.POST("", ctrl.Crear)
-		dispositivos.PUT("/:id", ctrl.Actualizar)
-		dispositivos.PUT("/:id/asignar", ctrl.AsignarCliente)
-		dispositivos.PUT("/:id/desasignar", ctrl.DesasignarCliente)
-		dispositivos.DELETE("/:id", ctrl.Eliminar)
-	}
-}
-
-func setupNotificacionRoutes(router *gin.RouterGroup, ctrl *controllers.NotificacionController) {
-	notificaciones := router.Group("/notificaciones")
-	notificaciones.Use(middleware.AuthMiddleware())
-	{
-		notificaciones.GET("", ctrl.Listar)
-		notificaciones.PUT("/:id/marcar-leida", ctrl.MarcarLeida)
-		notificaciones.PUT("/marcar-todas-leidas", ctrl.MarcarTodasLeidas)
-		notificaciones.DELETE("/:id", ctrl.Eliminar)
-		notificaciones.GET("/estadisticas", ctrl.ObtenerEstadisticas)
-	}
-}
-
-func setupBoletaRoutes(router *gin.RouterGroup, ctrl *controllers.BoletaController) {
-	boletas := router.Group("/boletas")
-	boletas.Use(middleware.AuthMiddleware())
-	{
-		boletas.GET("/cliente/:clienteId", ctrl.ObtenerPorCliente)
-		boletas.POST("", ctrl.Crear)
-	}
-}
-
-func setupTicketRoutes(router *gin.RouterGroup, ctrl *controllers.TicketController) {
-	tickets := router.Group("/tickets")
-	tickets.Use(middleware.AuthMiddleware())
-	{
-		tickets.GET("", ctrl.ObtenerTodos)
-		tickets.GET("/:id", ctrl.ObtenerPorID)
-		tickets.GET("/cliente/:clienteId", ctrl.ObtenerPorCliente)
-		tickets.GET("/empresa/:empresaId", ctrl.ObtenerPorEmpresa)
-		tickets.POST("", ctrl.Crear)
-		tickets.PUT("/:id/responder", ctrl.AgregarRespuesta)
-		tickets.PUT("/:id/estado", ctrl.ActualizarEstado)
-		tickets.DELETE("/:id", ctrl.Eliminar)
-	}
-}
-
-func setupEstadisticaRoutes(router *gin.RouterGroup, ctrl *controllers.EstadisticaController) {
-	estadisticas := router.Group("/estadisticas")
-	estadisticas.Use(middleware.AuthMiddleware())
-	{
-		estadisticas.GET("/cliente/:clienteId", ctrl.ObtenerConsumoCliente)
-		estadisticas.GET("/globales", ctrl.ObtenerEstadisticasGlobales)
-		estadisticas.GET("/resumen", ctrl.ObtenerResumen)
-	}
-}
-
-func setupReportesRoutes(router *gin.RouterGroup, ctrl *controllers.ReportesController) {
-	reportes := router.Group("/reportes")
-	reportes.Use(middleware.AuthMiddleware())
-	{
-		reportes.GET("/clientes", ctrl.Clientes)
-		reportes.GET("/dispositivos", ctrl.Dispositivos)
-		reportes.GET("/alertas", ctrl.Alertas)
-		reportes.GET("/boletas", ctrl.Boletas)
-		reportes.GET("/consumo", ctrl.Consumo)
-	}
-}
-
-func setupMapaRoutes(router *gin.RouterGroup, ctrl *controllers.MapaController) {
-	mapa := router.Group("/mapa")
-	mapa.Use(middleware.AuthMiddleware())
-	{
-		mapa.GET("/datos", ctrl.ObtenerDatosMapa)
-	}
-}
-
-func setupAntifraudeRoutes(router *gin.RouterGroup, ctrl *controllers.AntifraudeController) {
-	antifraude := router.Group("/antifraude")
-	antifraude.Use(middleware.AuthMiddleware())
-	{
-		antifraude.GET("/anomalias", ctrl.DetectarAnomalias)
-		antifraude.GET("/estadisticas", ctrl.ObtenerEstadisticas)
-	}
-}
-
-func setupDashboardRoutes(router *gin.RouterGroup, ctrl *controllers.DashboardController) {
-	dashboard := router.Group("/dashboard")
-	dashboard.Use(middleware.AuthMiddleware())
-	{
-		dashboard.GET("/estadisticas", ctrl.ObtenerEstadisticas)
-	}
-}
-
-func setupImagenPerfilRoutes(router *gin.RouterGroup, ctrl *controllers.ImagenPerfilController) {
-	imagenes := router.Group("/imagenes-perfil")
-	imagenes.Use(middleware.AuthMiddleware())
-	{
-		imagenes.POST("/:tipoUsuario/:userId/upload", ctrl.SubirYActualizarImagen)
-		imagenes.GET("/:tipoUsuario/:userId", ctrl.ObtenerImagenPerfil)
-		imagenes.DELETE("/:tipoUsuario/:userId", ctrl.EliminarImagenPerfil)
-	}
-}
-
-func setupTarifaRoutes(router *gin.RouterGroup, ctrl *controllers.TarifaController) {
-	tarifas := router.Group("/tarifas")
-	tarifas.Use(middleware.AuthMiddleware())
-	{
-		tarifas.GET("", ctrl.ObtenerTodas)
-		tarifas.GET("/activa", ctrl.ObtenerActiva)
-		tarifas.GET("/:id", ctrl.ObtenerPorID)
-		tarifas.POST("", ctrl.Crear)
-		tarifas.PUT("/:id", ctrl.Actualizar)
-		tarifas.DELETE("/:id", ctrl.Eliminar)
-		tarifas.POST("/calcular", ctrl.CalcularConsumo)
-	}
-}
-
-func setupConsumoRoutes(router *gin.RouterGroup, ctrl *controllers.ConsumoController) {
-	consumo := router.Group("/consumo")
-	consumo.Use(middleware.AuthMiddleware())
-	{
-		consumo.GET("/cliente/:clienteId/calcular", ctrl.CalcularCostoActual)
-		consumo.GET("/cliente/:clienteId/actual", ctrl.ObtenerConsumoActual)
-	}
+	v.RegisterValidation("rut", func(fl validator.FieldLevel) bool { return validation.ValidarRUT(fl.Field().String()) })
+	v.RegisterValidation("password_strong", func(fl validator.FieldLevel) bool { return validation.ValidarPassword(fl.Field().String()) == nil })
+	v.RegisterValidation("telefono_cl", func(fl validator.FieldLevel) bool { return validation.ValidarTelefonoChileno(fl.Field().String()) })
+	v.RegisterValidation("periodo", func(fl validator.FieldLevel) bool { return validation.ValidarPeriodo(fl.Field().String()) })
+	v.RegisterValidation("numero_cliente", func(fl validator.FieldLevel) bool { return validation.ValidarNumeroCliente(fl.Field().String()) })
 }
