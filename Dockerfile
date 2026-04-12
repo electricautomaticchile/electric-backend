@@ -1,4 +1,5 @@
-FROM golang:1.24-alpine AS builder
+# Usar ECR Public Gallery para evitar rate limit de Docker Hub en CodeBuild
+FROM public.ecr.aws/docker/library/golang:1.24-alpine AS builder
 
 WORKDIR /app
 COPY go.mod go.sum ./
@@ -7,7 +8,7 @@ RUN go mod download
 COPY . .
 RUN go build -o electric-backend-server .
 
-FROM alpine:3
+FROM public.ecr.aws/docker/library/alpine:3
 RUN apk --no-cache upgrade && apk --no-cache add ca-certificates tzdata
 WORKDIR /app
 COPY --from=builder /app/electric-backend-server .
