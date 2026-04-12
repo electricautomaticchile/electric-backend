@@ -9,6 +9,7 @@ import (
 	"electric-backend/infrastructure/arduino"
 	"electric-backend/infrastructure/middleware"
 	"electric-backend/types"
+	"fmt"
 	"net/http"
 	"time"
 
@@ -339,26 +340,27 @@ func (ctrl *DashboardClienteController) ObtenerEstadoServicio(gctx *gin.Context)
 	montoDeuda := 0.0
 
 	for _, b := range boletas {
-		if b.Estado == "pagada" || b.FechaPago != nil {
+		if b.Estado == "pagado" || b.FechaPago != nil {
 			boletasPagadas++
 		} else {
 			boletasPendientes++
 			montoDeuda += b.Monto
 		}
 	}
+	motivoCorte := ""
 
 	// Leer estado persistido desde MongoDB
 	estadoServicio := leerEstadoServicioCliente(clienteId)
-	motivoCorte := ""
 
-	// Si tiene 3+ boletas pendientes, forzar cortado
+	// Si tiene 3+ boletas vencidas, forzar cortado y enviar comando al dispositivo
 	if boletasPendientes >= 3 && estadoServicio == "activo" {
 		estadoServicio = "cortado"
-		motivoCorte = "Más de 3 boletas pendientes de pago"
+		motivoCorte = "impago_3_boletas"
 		persistirEstadoServicioCliente(clienteId, "cortado")
+		go ctrl.enviarComandoDispositivo(clienteId, "DESACTIVAR_SERVICIO")
 	}
 	if estadoServicio == "cortado" && motivoCorte == "" {
-		motivoCorte = "Corte manual por empresa"
+		motivoCorte = "impago_3_boletas"
 	}
 
 	puedeRestablecer := estadoServicio == "cortado" && boletasPendientes < 3
@@ -467,16 +469,16 @@ func (ctrl *DashboardClienteController) RestablecerServicio(gctx *gin.Context) {
 	boletasPendientes := 0
 	montoDeuda := 0.0
 	for _, b := range boletas {
-		if b.Estado != "pagada" && b.FechaPago == nil {
+		if b.Estado != "pagado" && b.FechaPago == nil {
 			boletasPendientes++
 			montoDeuda += b.Monto
 		}
 	}
 
-	if boletasPendientes >= 3 {
+	if boletasPendientes >= 2 {
 		gctx.JSON(http.StatusOK, types.ApiResponse{
 			Success: false,
-			Error:   "No puedes restablecer el servicio con 3 o más boletas pendientes",
+			Error:   fmt.Sprintf("Tienes %d boletas vencidas. Paga al menos %d para restablecer el servicio.", boletasPendientes, boletasPendientes-1),
 		})
 		return
 	}

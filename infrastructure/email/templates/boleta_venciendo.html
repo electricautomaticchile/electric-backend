@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <style>
+    body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; margin: 0; padding: 0; }
+    .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+    .header { background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); color: white; padding: 30px; text-align: center; border-radius: 10px 10px 0 0; }
+    .header h1 { margin: 0; font-size: 22px; }
+    .content { background: #f9fafb; padding: 30px; border-radius: 0 0 10px 10px; }
+    .info-box { background: #fffbeb; border-left: 4px solid #f59e0b; padding: 16px 20px; margin: 20px 0; border-radius: 4px; }
+    .info-box p { margin: 6px 0; }
+    .amount { font-size: 28px; font-weight: bold; color: #d97706; }
+    .button { display: inline-block; background: #f59e0b; color: white; padding: 12px 28px; text-decoration: none; border-radius: 6px; margin-top: 20px; font-weight: bold; }
+    .footer { text-align: center; margin-top: 24px; color: #9ca3af; font-size: 12px; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header"><h1>⚠️ Tu boleta está por vencer</h1></div>
+    <div class="content">
+      <p>Hola <strong>{{.NombreCliente}}</strong>,</p>
+      <p>Tu boleta de consumo eléctrico está próxima a vencer. Paga a tiempo para evitar el corte del servicio.</p>
+      <div class="info-box">
+        <p><strong>Periodo:</strong> {{.Periodo}}</p>
+        <p><strong>Monto:</strong> <span class="amount">${{.Monto}}</span></p>
+        <p><strong>Vence el:</strong> {{.FechaVencimiento}}</p>
+      </div>
+      <a href="https://electricautomaticchile.com/cliente" class="button">Pagar ahora</a>
+    </div>
+    <div class="footer">
+      <p>Electricautomaticchile — Sistema de Monitoreo Eléctrico</p>
+      <p>Este es un correo automático, por favor no responder.</p>
+    </div>
+  </div>
+</body>
+</html>

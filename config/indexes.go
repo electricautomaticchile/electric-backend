@@ -102,13 +102,15 @@ func CreateIndexes(db *mongo.Database) error {
 				{
 					Keys: bson.D{
 						{Key: "fechaVencimiento", Value: 1},
+						{Key: "estado", Value: 1},
 					},
 				},
 				{
 					Keys: bson.D{
-						{Key: "numeroBoleta", Value: 1},
+						{Key: "clienteId", Value: 1},
+						{Key: "anio", Value: -1},
+						{Key: "mes", Value: -1},
 					},
-					Options: options.Index().SetUnique(true),
 				},
 			},
 		},

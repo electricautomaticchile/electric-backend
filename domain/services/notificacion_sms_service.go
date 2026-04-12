@@ -108,7 +108,7 @@ func (s *NotificacionSMSService) VerificarYNotificarBoletasImpagas(ctx context.C
 		var montoTotal float64
 
 		for _, boleta := range boletas {
-			if boleta.Estado == "pendiente" || boleta.Estado == "vencida" {
+			if boleta.Estado == "pendiente" || boleta.Estado == "por_vencer" || boleta.Estado == "vencido" {
 				boletasImpagas = append(boletasImpagas, boleta)
 				montoTotal += boleta.MontoTotal
 			}
@@ -130,7 +130,7 @@ func (s *NotificacionSMSService) VerificarYNotificarBoletasImpagas(ctx context.C
 	return nil
 }
 
-func (s *NotificacionSMSService) NotificarPagoBoleta(ctx context.Context, clienteID, numeroBoleta string, monto float64) error {
+func (s *NotificacionSMSService) NotificarPagoBoleta(ctx context.Context, clienteID, periodo string, monto float64) error {
 	cliente, err := s.clienteRepo.FindByID(ctx, clienteID)
 	if err != nil {
 		return fmt.Errorf("error obteniendo cliente: %w", err)
@@ -143,7 +143,7 @@ func (s *NotificacionSMSService) NotificarPagoBoleta(ctx context.Context, client
 	return s.smsService.EnviarConfirmacionPago(
 		cliente.Telefono,
 		cliente.Nombre,
-		numeroBoleta,
+		periodo,
 		monto,
 	)
 }

@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <style>
+    body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; margin: 0; padding: 0; }
+    .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+    .header { background: linear-gradient(135deg, #f97316 0%, #ea580c 100%); color: white; padding: 30px; text-align: center; border-radius: 10px 10px 0 0; }
+    .header h1 { margin: 0; font-size: 22px; }
+    .content { background: #f9fafb; padding: 30px; border-radius: 0 0 10px 10px; }
+    .warning-box { background: #fff7ed; border-left: 4px solid #f97316; padding: 16px 20px; margin: 20px 0; border-radius: 4px; }
+    .warning-box p { margin: 6px 0; }
+    .amount { font-size: 28px; font-weight: bold; color: #ea580c; }
+    .button { display: inline-block; background: #f97316; color: white; padding: 12px 28px; text-decoration: none; border-radius: 6px; margin-top: 20px; font-weight: bold; }
+    .footer { text-align: center; margin-top: 24px; color: #9ca3af; font-size: 12px; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header"><h1>⚠️ Advertencia: {{.NumBoletas}} boletas vencidas</h1></div>
+    <div class="content">
+      <p>Hola <strong>{{.NombreCliente}}</strong>,</p>
+      <p>Tienes <strong>{{.NumBoletas}} boletas vencidas</strong>. Al tercer impago se suspenderá automáticamente tu suministro eléctrico.</p>
+      <div class="warning-box">
+        <p><strong>Boletas vencidas:</strong> {{.NumBoletas}}</p>
+        <p><strong>Deuda total:</strong> <span class="amount">${{.MontoTotal}}</span></p>
+      </div>
+      <p>Regulariza tu deuda ahora para evitar el corte del servicio.</p>
+      <a href="https://electricautomaticchile.com/cliente" class="button">Pagar ahora</a>
+    </div>
+    <div class="footer">
+      <p>Electricautomaticchile — Sistema de Monitoreo Eléctrico</p>
+      <p>Este es un correo automático, por favor no responder.</p>
+    </div>
+  </div>
+</body>
+</html>

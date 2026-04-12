@@ -15,8 +15,11 @@ type MonitoreoService struct {
 	dispositivoRepo  ports.PortDispositivo
 	clienteRepo      ports.PortCliente
 	empresaRepo      ports.PortEmpresa
-	emailService     EmailSender    // Mejora #12: Alertas externas
-	smsService       SMSSender      // Mejora #12: Alertas externas
+	emailService     EmailSender
+	smsService       SMSSender
+	// Throttle: última alerta por dispositivo para evitar spam
+	ultimaAlerta     map[string]time.Time
+	throttleDuracion time.Duration
 }
 
 // EmailSender interfaz mínima para envío de alertas por email
@@ -44,6 +47,8 @@ func NewMonitoreoService(
 		empresaRepo:      empresaRepo,
 		emailService:     emailService,
 		smsService:       smsService,
+		ultimaAlerta:     make(map[string]time.Time),
+		throttleDuracion: 24 * time.Hour, // Máximo 1 alerta por dispositivo por día
 	}
 }
 
@@ -132,43 +137,26 @@ func (s *MonitoreoService) VerificarPatronesAnormales(ctx context.Context, empre
 			continue
 		}
 
-		if dispositivo.UltimaLectura.Voltage < 200 || dispositivo.UltimaLectura.Voltage > 240 {
-			titulo := fmt.Sprintf("Voltaje anormal - Dispositivo %s", dispositivo.NumeroDispositivo)
-			mensaje := fmt.Sprintf("El dispositivo %s registra un voltaje de %.2fV fuera del rango normal (200-240V).", 
-				dispositivo.Nombre, dispositivo.UltimaLectura.Voltage)
-			
-			empresaOID, _ := primitive.ObjectIDFromHex(empresaID)
-			notificacion := &entities.NotificacionEntity{
-				DestinatarioID: empresaOID,
-				DispositivoID:  dispositivo.ID,
-				Tipo:           "alerta",
-				Severidad:      "error",
-				Titulo:         titulo,
-				Mensaje:        mensaje,
-				Importante:     true,
-				Leida:          false,
-				Resuelta:       false,
-				FechaCreacion:  time.Now(),
-				Metadatos: map[string]interface{}{
-					"voltaje":           dispositivo.UltimaLectura.Voltage,
-					"rangoMin":          200.0,
-					"rangoMax":          240.0,
-					"numeroDispositivo": dispositivo.NumeroDispositivo,
-					"dispositivoId":     dispositivo.ID.Hex(),
-				},
-			}
-
-			s.notificacionRepo.Create(ctx, notificacion)
-			s.enviarAlertaExterna(ctx, dispositivo, titulo, mensaje, "error")
+		key := dispositivo.ID.Hex()
+		if ultima, ok := s.ultimaAlerta[key]; ok && time.Since(ultima) < s.throttleDuracion {
+			continue // Throttle activo — no enviar más alertas para este dispositivo
 		}
 
-		if dispositivo.UltimaLectura.Current > 50 {
-			titulo := fmt.Sprintf("Corriente elevada - Dispositivo %s", dispositivo.NumeroDispositivo)
-			mensaje := fmt.Sprintf("El dispositivo %s registra una corriente de %.2fA, superando el límite seguro.", 
-				dispositivo.Nombre, dispositivo.UltimaLectura.Current)
-			
+		// No enviar alertas si el servicio está cortado — voltaje anormal es comportamiento esperado
+		if dispositivo.EstadoServicio == "cortado" || dispositivo.EstadoServicio == "corte_pendiente" {
+			continue
+		}
+
+		alertaEnviada := false
+
+		if dispositivo.UltimaLectura.Voltage > 0 &&
+			(dispositivo.UltimaLectura.Voltage < 200 || dispositivo.UltimaLectura.Voltage > 240) {
+			titulo := fmt.Sprintf("Voltaje anormal - Dispositivo %s", dispositivo.NumeroDispositivo)
+			mensaje := fmt.Sprintf("El dispositivo %s registra %.1fV (rango normal: 200-240V).",
+				dispositivo.Nombre, dispositivo.UltimaLectura.Voltage)
+
 			empresaOID, _ := primitive.ObjectIDFromHex(empresaID)
-			notificacion := &entities.NotificacionEntity{
+			s.notificacionRepo.Create(ctx, &entities.NotificacionEntity{
 				DestinatarioID: empresaOID,
 				DispositivoID:  dispositivo.ID,
 				Tipo:           "alerta",
@@ -176,19 +164,34 @@ func (s *MonitoreoService) VerificarPatronesAnormales(ctx context.Context, empre
 				Titulo:         titulo,
 				Mensaje:        mensaje,
 				Importante:     true,
-				Leida:          false,
-				Resuelta:       false,
 				FechaCreacion:  time.Now(),
-				Metadatos: map[string]interface{}{
-					"corriente":         dispositivo.UltimaLectura.Current,
-					"umbral":            50.0,
-					"numeroDispositivo": dispositivo.NumeroDispositivo,
-					"dispositivoId":     dispositivo.ID.Hex(),
-				},
-			}
-
-			s.notificacionRepo.Create(ctx, notificacion)
+			})
 			s.enviarAlertaExterna(ctx, dispositivo, titulo, mensaje, "error")
+			alertaEnviada = true
+		}
+
+		if !alertaEnviada && dispositivo.UltimaLectura.Current > 50 {
+			titulo := fmt.Sprintf("Corriente elevada - Dispositivo %s", dispositivo.NumeroDispositivo)
+			mensaje := fmt.Sprintf("El dispositivo %s registra %.1fA (límite: 50A).",
+				dispositivo.Nombre, dispositivo.UltimaLectura.Current)
+
+			empresaOID, _ := primitive.ObjectIDFromHex(empresaID)
+			s.notificacionRepo.Create(ctx, &entities.NotificacionEntity{
+				DestinatarioID: empresaOID,
+				DispositivoID:  dispositivo.ID,
+				Tipo:           "alerta",
+				Severidad:      "error",
+				Titulo:         titulo,
+				Mensaje:        mensaje,
+				Importante:     true,
+				FechaCreacion:  time.Now(),
+			})
+			s.enviarAlertaExterna(ctx, dispositivo, titulo, mensaje, "error")
+			alertaEnviada = true
+		}
+
+		if alertaEnviada {
+			s.ultimaAlerta[key] = time.Now()
 		}
 	}
 
@@ -204,20 +207,15 @@ func (s *MonitoreoService) IniciarMonitoreoAutomatico(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			s.ejecutarVerificaciones(ctx)
+			empresas, err := s.empresaRepo.FindAll(ctx)
+			if err != nil {
+				continue
+			}
+			for _, empresa := range empresas {
+				s.VerificarConsumoAnormal(ctx, empresa.ID)
+				s.VerificarPatronesAnormales(ctx, empresa.ID)
+			}
 		}
-	}
-}
-
-func (s *MonitoreoService) ejecutarVerificaciones(ctx context.Context) {
-	empresas, err := s.empresaRepo.FindAll(ctx)
-	if err != nil {
-		return
-	}
-	
-	for _, empresa := range empresas {
-		s.VerificarConsumoAnormal(ctx, empresa.ID)
-		s.VerificarPatronesAnormales(ctx, empresa.ID)
 	}
 }
 
@@ -367,7 +365,7 @@ func (s *MonitoreoService) enviarAlertaExterna(ctx context.Context, dispositivo 
 	// Enviar SMS solo para alertas críticas/error
 	if s.smsService != nil && cliente.Telefono != "" && (severidad == "error" || severidad == "critical") {
 		go func() {
-			smsMsg := fmt.Sprintf("⚠️ %s\n%s\n- Electric Automatic Chile", titulo, mensaje)
+			smsMsg := fmt.Sprintf("⚠️ %s\n%s\n- Electricautomaticchile", titulo, mensaje)
 			if err := s.smsService.EnviarSMS(cliente.Telefono, smsMsg); err != nil {
 				fmt.Printf("Error enviando alerta SMS a %s: %v\n", cliente.Telefono, err)
 			}

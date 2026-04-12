@@ -10,6 +10,9 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/sns"
 )
 
+const firma = "Electricautomaticchile"
+const urlPago = "electricautomaticchile.com/cliente"
+
 // SMSService define la interfaz para envío de SMS
 type SMSService interface {
 	EnviarSMS(to, mensaje string) error
@@ -52,37 +55,66 @@ func (s *SNSService) EnviarSMS(to, mensaje string) error {
 	return nil
 }
 
+// Resumen quincenal de consumo (día 1 y 15 del mes)
 func (s *SNSService) EnviarNotificacionConsumo(telefono, nombreCliente string, consumoKWh, costoEstimado float64, diasTranscurridos int) error {
 	mensaje := fmt.Sprintf(
-		"Hola %s, llevas %d dias de consumo:\n"+
-			"⚡ %.2f kWh\n"+
-			"💰 $%.0f aprox.\n"+
-			"Reduce tu consumo para ahorrar.\n"+
-			"- Electricatomaticchile",
-		nombreCliente, diasTranscurridos, consumoKWh, costoEstimado,
+		"Hola %s, tu resumen de consumo (%d dias):\n"+
+			"⚡ %.1f kWh consumidos\n"+
+			"💰 $%s estimado este mes\n"+
+			"Revisa tu detalle en %s\n"+
+			"- %s",
+		nombreCliente,
+		diasTranscurridos,
+		consumoKWh,
+		formatCLP(costoEstimado),
+		urlPago,
+		firma,
 	)
 	return s.EnviarSMS(telefono, mensaje)
 }
 
+// Aviso de corte por boletas impagas
 func (s *SNSService) EnviarAvisoCorteServicio(telefono, nombreCliente string, boletasImpagas int, montoTotal float64) error {
 	mensaje := fmt.Sprintf(
-		"⚠️ AVISO IMPORTANTE\n"+
-			"Hola %s, tienes %d boletas impagas por $%.0f.\n"+
-			"Tu servicio sera cortado pronto.\n"+
-			"Paga en: electricautomaticchile.com/cliente\n"+
-			"- Electricautomaticchile",
-		nombreCliente, boletasImpagas, montoTotal,
+		"⚠️ AVISO: Hola %s, tienes %d boleta(s) vencida(s) por $%s.\n"+
+			"Tu suministro electrico sera suspendido si no regularizas tu deuda.\n"+
+			"Paga en: %s\n"+
+			"- %s",
+		nombreCliente,
+		boletasImpagas,
+		formatCLP(montoTotal),
+		urlPago,
+		firma,
 	)
 	return s.EnviarSMS(telefono, mensaje)
 }
 
-func (s *SNSService) EnviarConfirmacionPago(telefono, nombreCliente, numeroBoleta string, monto float64) error {
+// Confirmación de pago recibido
+func (s *SNSService) EnviarConfirmacionPago(telefono, nombreCliente, periodo string, monto float64) error {
 	mensaje := fmt.Sprintf(
 		"✅ Pago confirmado\n"+
-			"Hola %s, recibimos tu pago de $%.0f para la boleta #%s.\n"+
-			"Gracias por tu preferencia.\n"+
-			"- Electricautomaticchile",
-		nombreCliente, monto, numeroBoleta,
+			"Hola %s, recibimos tu pago de $%s correspondiente a %s.\n"+
+			"Gracias por regularizar tu cuenta.\n"+
+			"- %s",
+		nombreCliente,
+		formatCLP(monto),
+		periodo,
+		firma,
 	)
 	return s.EnviarSMS(telefono, mensaje)
+}
+
+// formatCLP formatea un número como pesos chilenos sin decimales con separador de miles
+func formatCLP(monto float64) string {
+	n := int64(monto)
+	s := fmt.Sprintf("%d", n)
+	// Agregar puntos como separador de miles
+	result := ""
+	for i, c := range s {
+		if i > 0 && (len(s)-i)%3 == 0 {
+			result += "."
+		}
+		result += string(c)
+	}
+	return result
 }

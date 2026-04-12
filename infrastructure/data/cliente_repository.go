@@ -133,12 +133,15 @@ func (r *ClienteRepository) modelToEntity(model *models.ClienteModel) *entities.
 }
 
 func (r *ClienteRepository) FindAll(ctx context.Context, empresaID string) ([]*models.ClienteModel, error) {
-	empresaObjectID, err := primitive.ObjectIDFromHex(empresaID)
-	if err != nil {
-		return []*models.ClienteModel{}, nil
+	filter := bson.M{}
+	if empresaID != "" {
+		empresaObjectID, err := primitive.ObjectIDFromHex(empresaID)
+		if err == nil {
+			filter["empresaId"] = empresaObjectID
+		}
 	}
 
-	cursor, err := r.collection.Find(ctx, bson.M{"empresaId": empresaObjectID})
+	cursor, err := r.collection.Find(ctx, filter)
 	if err != nil {
 		return []*models.ClienteModel{}, nil
 	}

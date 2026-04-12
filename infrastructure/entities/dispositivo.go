@@ -20,6 +20,7 @@ type DispositivoEntity struct {
 	UltimaLectura      *LecturaDispositivo    `bson:"ultimaLectura,omitempty" json:"ultimaLectura,omitempty"`
 	Configuracion      map[string]interface{} `bson:"configuracion,omitempty" json:"configuracion,omitempty"`
 	IoTToken           string                 `bson:"iotToken,omitempty" json:"-"` // Mejora #9: Token único por dispositivo
+	EstadoServicio     string                 `bson:"estadoServicio,omitempty" json:"estadoServicio,omitempty"`
 	Activo             bool                   `bson:"activo" json:"activo"`
 	FechaCreacion      time.Time              `bson:"fechaCreacion" json:"fechaCreacion"`
 	FechaActualizacion *time.Time             `bson:"fechaActualizacion,omitempty" json:"fechaActualizacion,omitempty"`
