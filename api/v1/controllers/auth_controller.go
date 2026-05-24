@@ -2,10 +2,12 @@ package controllers
 
 import (
 	"electric-backend/api/v1/recipe"
+	"electric-backend/config"
 	"electric-backend/domain/facades"
 	"electric-backend/infrastructure/middleware"
 	"electric-backend/types"
 	"net/http"
+	"os"
 
 	"github.com/gin-gonic/gin"
 )
@@ -31,6 +33,7 @@ func (ctrl *AuthController) SetupRoutes(router *gin.RouterGroup) {
 		auth.POST("/solicitar-recuperacion", ctrl.SolicitarRecuperacion)
 		auth.POST("/restablecer-password", ctrl.RestablecerPassword)
 		auth.POST("/refresh", ctrl.RefreshToken)
+		auth.POST("/refresh-token", ctrl.RefreshToken)
 
 		auth.Use(middleware.AuthMiddleware())
 		{
@@ -40,6 +43,36 @@ func (ctrl *AuthController) SetupRoutes(router *gin.RouterGroup) {
 			auth.POST("/logout", ctrl.Logout)
 		}
 	}
+}
+
+func authCookieDomain() string {
+	if config.AppConfig == nil {
+		return ""
+	}
+	return config.AppConfig.AuthCookieDomain
+}
+
+func secureCookies() bool {
+	if config.AppConfig != nil && config.AppConfig.Environment == "production" {
+		return true
+	}
+	return os.Getenv("NODE_ENV") == "production"
+}
+
+func setSessionCookies(gctx *gin.Context, token string, refreshToken string) {
+	const authMaxAge = 24 * 60 * 60
+	const refreshMaxAge = 7 * 24 * 60 * 60
+
+	gctx.SetSameSite(http.SameSiteLaxMode)
+	gctx.SetCookie("auth_token", token, authMaxAge, "/", authCookieDomain(), secureCookies(), true)
+	gctx.SetCookie("refresh_token", refreshToken, refreshMaxAge, "/", authCookieDomain(), secureCookies(), true)
+}
+
+func clearSessionCookies(gctx *gin.Context) {
+	gctx.SetSameSite(http.SameSiteLaxMode)
+	gctx.SetCookie("auth_token", "", -1, "/", authCookieDomain(), secureCookies(), true)
+	gctx.SetCookie("refresh_token", "", -1, "/", authCookieDomain(), secureCookies(), true)
+	gctx.SetCookie("requiereCambioPassword", "", -1, "/", authCookieDomain(), secureCookies(), false)
 }
 
 func (ctrl *AuthController) Login(gctx *gin.Context) {
@@ -57,9 +90,7 @@ func (ctrl *AuthController) Login(gctx *gin.Context) {
 
 	requiereCambioPassword := result.User.PasswordTemporal != ""
 
-	// Nota: No setear cookie HttpOnly desde el backend porque el frontend
-	// está en un dominio diferente (electricautomaticchile.com vs api-electricautomaticchile.com).
-	// El frontend setea su propia cookie auth_token para el middleware de Next.js.
+	setSessionCookies(gctx, result.Token, result.RefreshToken)
 
 	gctx.JSON(http.StatusOK, types.ApiResponse{
 		Success: true,
@@ -74,8 +105,9 @@ func (ctrl *AuthController) Login(gctx *gin.Context) {
 
 func (ctrl *AuthController) Logout(gctx *gin.Context) {
 	userID := gctx.Request.Context().Value(types.ContextKeyUserID).(string)
-	
+
 	ctrl.authFacade.RevokeAllRefreshTokens(gctx.Request.Context(), userID)
+	clearSessionCookies(gctx)
 
 	gctx.JSON(http.StatusOK, types.ApiResponse{
 		Success: true,
@@ -113,10 +145,20 @@ func (ctrl *AuthController) GetCSRFToken(gctx *gin.Context) {
 
 func (ctrl *AuthController) RefreshToken(gctx *gin.Context) {
 	var r struct {
-		RefreshToken string `json:"refreshToken" binding:"required"`
+		RefreshToken string `json:"refreshToken"`
 	}
-	
+
 	if err := gctx.ShouldBindJSON(&r); err != nil {
+		r.RefreshToken = ""
+	}
+
+	if r.RefreshToken == "" {
+		if cookieToken, err := gctx.Cookie("refresh_token"); err == nil {
+			r.RefreshToken = cookieToken
+		}
+	}
+
+	if r.RefreshToken == "" {
 		gctx.Error(types.ThrowRecipe("Token requerido", "refreshToken"))
 		return
 	}
@@ -126,6 +168,8 @@ func (ctrl *AuthController) RefreshToken(gctx *gin.Context) {
 		gctx.Error(err)
 		return
 	}
+
+	setSessionCookies(gctx, result.Token, result.RefreshToken)
 
 	gctx.JSON(http.StatusOK, types.ApiResponse{
 		Success: true,
@@ -166,15 +210,7 @@ func (ctrl *AuthController) CambiarPassword(gctx *gin.Context) {
 		return
 	}
 
-	gctx.SetCookie(
-		"requiereCambioPassword",
-		"",
-		-1,
-		"/",
-		"",
-		false,
-		false,
-	)
+	gctx.SetCookie("requiereCambioPassword", "", -1, "/", authCookieDomain(), secureCookies(), false)
 
 	gctx.JSON(http.StatusOK, types.ApiResponse{
 		Success: true,
@@ -236,8 +272,8 @@ func (ctrl *AuthController) RegistroEmpresa(gctx *gin.Context) {
 	gctx.JSON(http.StatusCreated, types.ApiResponse{
 		Success: true,
 		Data: gin.H{
-			"empresa":         empresa,
-			"numeroCliente":   empresa.NumeroCliente,
+			"empresa":          empresa,
+			"numeroCliente":    empresa.NumeroCliente,
 			"passwordTemporal": empresa.Password,
 		},
 		Message: "Empresa registrada correctamente. Guarda tu número de cliente y contraseña temporal",
@@ -257,9 +293,7 @@ func (ctrl *AuthController) LoginEmpresa(gctx *gin.Context) {
 		return
 	}
 
-	// Mejora #10: Cookie HttpOnly para login empresa
-	// Nota: No setear cookie HttpOnly — dominios diferentes (api vs frontend).
-	// El frontend setea su propia cookie auth_token.
+	setSessionCookies(gctx, result.Token, result.RefreshToken)
 
 	gctx.JSON(http.StatusOK, types.ApiResponse{
 		Success: true,

@@ -24,6 +24,9 @@ type Config struct {
 	// CORS
 	CORSOrigins string
 
+	// Auth cookies
+	AuthCookieDomain string
+
 	// AWS S3
 	AWSRegion      string
 	S3BucketImages string
@@ -82,6 +85,8 @@ func LoadConfig() *Config {
 		RedisDB:       getEnv("REDIS_DB", "0"),
 
 		CORSOrigins: getEnv("CORS_ORIGINS", "http://localhost:3000"),
+
+		AuthCookieDomain: getEnv("AUTH_COOKIE_DOMAIN", ""),
 
 		AWSRegion:      getEnv("AWS_REGION", "us-east-1"),
 		S3BucketImages: getEnv("AWS_S3_IMAGES_BUCKET_NAME", ""),
