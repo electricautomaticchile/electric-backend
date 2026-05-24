@@ -3,12 +3,13 @@ package server
 // rateLimits retorna la configuración de rate limiting por endpoint.
 func rateLimits() map[string]int {
 	return map[string]int{
-		"POST:/api/auth/login":            5,
-		"POST:/api/auth/register":         3,
-		"POST:/api/auth/recovery":         3,
-		"POST:/api/auth/reset-password":   3,
-		"POST:/api/auth/cambiar-password": 10,
-		"POST:/api/auth/refresh-token":    20,
+		"POST:/api/auth/login":                  5,
+		"POST:/api/auth/login/empresa":          5,
+		"POST:/api/auth/registro-empresa":       3,
+		"POST:/api/auth/solicitar-recuperacion": 3,
+		"POST:/api/auth/restablecer-password":   3,
+		"POST:/api/auth/cambiar-password":       10,
+		"POST:/api/auth/refresh-token":          20,
 
 		"GET:/api/clientes":        60,
 		"POST:/api/clientes":       20,

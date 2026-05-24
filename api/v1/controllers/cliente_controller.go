@@ -25,7 +25,7 @@ func NewClienteController(clienteFacade *facades.ClienteFacade) *ClienteControll
 // SetupRoutes configura las rutas del controlador
 func (ctrl *ClienteController) SetupRoutes(router *gin.RouterGroup) {
 	clientes := router.Group("/clientes")
-	clientes.Use(middleware.AuthMiddleware())
+	clientes.Use(middleware.AuthMiddleware(), middleware.CSRFMiddleware())
 	{
 		clientes.GET("", ctrl.ObtenerTodos)
 		clientes.GET("/:id", ctrl.ObtenerPorID)
@@ -115,6 +115,10 @@ func (ctrl *ClienteController) ObtenerPorID(gctx *gin.Context) {
 		gctx.Error(err)
 		return
 	}
+	if !middleware.CanAccessResource(gctx, cliente.ID, cliente.EmpresaID, true) {
+		gctx.Error(types.ThrowPower("No tienes acceso a este cliente"))
+		return
+	}
 
 	gctx.JSON(http.StatusOK, types.ApiResponse{
 		Success: true,
@@ -130,6 +134,10 @@ func (ctrl *ClienteController) ObtenerPorNumero(gctx *gin.Context) {
 		gctx.Error(err)
 		return
 	}
+	if !middleware.CanAccessResource(gctx, cliente.ID, cliente.EmpresaID, true) {
+		gctx.Error(types.ThrowPower("No tienes acceso a este cliente"))
+		return
+	}
 
 	gctx.JSON(http.StatusOK, types.ApiResponse{
 		Success: true,
@@ -138,11 +146,17 @@ func (ctrl *ClienteController) ObtenerPorNumero(gctx *gin.Context) {
 }
 
 func (ctrl *ClienteController) Crear(gctx *gin.Context) {
+	if !middleware.IsEmpresaContext(gctx) || middleware.EmpresaID(gctx) == "" {
+		gctx.Error(types.ThrowPower("Solo una empresa autenticada puede crear clientes"))
+		return
+	}
+
 	var r recipe.CrearClienteRecipe
 	if err := gctx.ShouldBindJSON(&r); err != nil {
 		gctx.Error(types.ThrowRecipe("Datos inválidos", ""))
 		return
 	}
+	r.EmpresaID = middleware.EmpresaID(gctx)
 
 	if err := validation.ValidateNombre(r.Nombre); err != nil {
 		gctx.Error(types.ThrowRecipe(err.Error(), ""))
@@ -205,6 +219,16 @@ func (ctrl *ClienteController) Crear(gctx *gin.Context) {
 func (ctrl *ClienteController) Actualizar(gctx *gin.Context) {
 	id := gctx.Param("id")
 
+	clienteActual, err := ctrl.clienteFacade.ObtenerPorID(gctx.Request.Context(), id)
+	if err != nil {
+		gctx.Error(err)
+		return
+	}
+	if !middleware.CanAccessResource(gctx, clienteActual.ID, clienteActual.EmpresaID, false) {
+		gctx.Error(types.ThrowPower("No tienes permisos para actualizar este cliente"))
+		return
+	}
+
 	var r recipe.ActualizarClienteRecipe
 	if err := gctx.ShouldBindJSON(&r); err != nil {
 		gctx.Error(types.ThrowRecipe("Datos inválidos", ""))
@@ -227,7 +251,17 @@ func (ctrl *ClienteController) Actualizar(gctx *gin.Context) {
 func (ctrl *ClienteController) Eliminar(gctx *gin.Context) {
 	id := gctx.Param("id")
 
-	err := ctrl.clienteFacade.Eliminar(gctx.Request.Context(), id)
+	cliente, err := ctrl.clienteFacade.ObtenerPorID(gctx.Request.Context(), id)
+	if err != nil {
+		gctx.Error(err)
+		return
+	}
+	if !middleware.CanAccessResource(gctx, cliente.ID, cliente.EmpresaID, false) {
+		gctx.Error(types.ThrowPower("No tienes permisos para eliminar este cliente"))
+		return
+	}
+
+	err = ctrl.clienteFacade.Eliminar(gctx.Request.Context(), id)
 	if err != nil {
 		gctx.Error(err)
 		return

@@ -25,7 +25,7 @@ func NewTicketController(ticketService *services.TicketService) *TicketControlle
 // SetupRoutes configura las rutas del controlador
 func (ctrl *TicketController) SetupRoutes(router *gin.RouterGroup) {
 	g := router.Group("/tickets")
-	g.Use(middleware.AuthMiddleware())
+	g.Use(middleware.AuthMiddleware(), middleware.CSRFMiddleware())
 	g.GET("", ctrl.ObtenerTodos)
 	g.GET("/:id", ctrl.ObtenerPorID)
 	g.GET("/cliente/:clienteId", ctrl.ObtenerPorCliente)
@@ -39,28 +39,28 @@ func (ctrl *TicketController) SetupRoutes(router *gin.RouterGroup) {
 func (ctrl *TicketController) ObtenerTodos(gctx *gin.Context) {
 	page, _ := strconv.Atoi(gctx.DefaultQuery("page", "1"))
 	limit, _ := strconv.Atoi(gctx.DefaultQuery("limit", "50"))
-	
+
 	if page < 1 {
 		page = 1
 	}
 	if limit < 1 || limit > 100 {
 		limit = 50
 	}
-	
+
 	skip := (page - 1) * limit
-	
+
 	tickets, err := ctrl.ticketService.ObtenerTodos(gctx.Request.Context())
 	if err != nil {
 		gctx.Error(err)
 		return
 	}
-	
+
 	total := len(tickets)
 	end := skip + limit
 	if end > total {
 		end = total
 	}
-	
+
 	paginatedTickets := tickets
 	if skip < total {
 		paginatedTickets = tickets[skip:end]
@@ -135,9 +135,9 @@ func (ctrl *TicketController) AgregarRespuesta(gctx *gin.Context) {
 	}
 
 	gctx.JSON(http.StatusOK, gin.H{
-"success": true,
-"message": "Respuesta agregada correctamente",
-})
+		"success": true,
+		"message": "Respuesta agregada correctamente",
+	})
 }
 
 func (ctrl *TicketController) ActualizarEstado(gctx *gin.Context) {
@@ -156,9 +156,9 @@ func (ctrl *TicketController) ActualizarEstado(gctx *gin.Context) {
 	}
 
 	gctx.JSON(http.StatusOK, gin.H{
-"success": true,
-"message": "Estado actualizado correctamente",
-})
+		"success": true,
+		"message": "Estado actualizado correctamente",
+	})
 }
 
 func (ctrl *TicketController) Eliminar(gctx *gin.Context) {
@@ -171,11 +171,10 @@ func (ctrl *TicketController) Eliminar(gctx *gin.Context) {
 	}
 
 	gctx.JSON(http.StatusOK, gin.H{
-"success": true,
-"message": "Ticket eliminado correctamente",
-})
+		"success": true,
+		"message": "Ticket eliminado correctamente",
+	})
 }
-
 
 func (ctrl *TicketController) ObtenerPorCliente(gctx *gin.Context) {
 	clienteID := gctx.Param("clienteId")

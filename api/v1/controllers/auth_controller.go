@@ -8,6 +8,7 @@ import (
 	"electric-backend/types"
 	"net/http"
 	"os"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 )
@@ -35,7 +36,7 @@ func (ctrl *AuthController) SetupRoutes(router *gin.RouterGroup) {
 		auth.POST("/refresh", ctrl.RefreshToken)
 		auth.POST("/refresh-token", ctrl.RefreshToken)
 
-		auth.Use(middleware.AuthMiddleware())
+		auth.Use(middleware.AuthMiddleware(), middleware.CSRFMiddleware())
 		{
 			auth.GET("/profile", ctrl.ObtenerPerfil)
 			auth.GET("/me", ctrl.ObtenerPerfil)
@@ -75,6 +76,11 @@ func clearSessionCookies(gctx *gin.Context) {
 	gctx.SetCookie("requiereCambioPassword", "", -1, "/", authCookieDomain(), secureCookies(), false)
 }
 
+func shouldExposeTokens(gctx *gin.Context) bool {
+	clientType := strings.ToLower(gctx.GetHeader("X-Client-Type"))
+	return clientType == "mobile" || clientType == "native"
+}
+
 func (ctrl *AuthController) Login(gctx *gin.Context) {
 	var r recipe.LoginRecipe
 	if err := gctx.ShouldBindJSON(&r); err != nil {
@@ -92,14 +98,18 @@ func (ctrl *AuthController) Login(gctx *gin.Context) {
 
 	setSessionCookies(gctx, result.Token, result.RefreshToken)
 
+	data := gin.H{
+		"user":                   result.User,
+		"requiereCambioPassword": requiereCambioPassword,
+	}
+	if shouldExposeTokens(gctx) {
+		data["token"] = result.Token
+		data["refreshToken"] = result.RefreshToken
+	}
+
 	gctx.JSON(http.StatusOK, types.ApiResponse{
 		Success: true,
-		Data: gin.H{
-			"token":                  result.Token,
-			"refreshToken":           result.RefreshToken,
-			"user":                   result.User,
-			"requiereCambioPassword": requiereCambioPassword,
-		},
+		Data:    data,
 	})
 }
 
@@ -121,6 +131,18 @@ func (ctrl *AuthController) GetCSRFToken(gctx *gin.Context) {
 		userID, exists := gctx.Get("userID")
 		if exists {
 			sessionID = userID.(string)
+		}
+	}
+	if sessionID == "" {
+		if cookieToken, err := gctx.Cookie("auth_token"); err == nil && cookieToken != "" {
+			if claims, err := middleware.ParseJWTClaims(cookieToken); err == nil {
+				sessionID = claims.UserID
+			}
+		}
+	}
+	if sessionID == "" {
+		if userID := gctx.GetString("userId"); userID != "" {
+			sessionID = userID
 		} else {
 			sessionID = gctx.ClientIP()
 		}
@@ -171,12 +193,15 @@ func (ctrl *AuthController) RefreshToken(gctx *gin.Context) {
 
 	setSessionCookies(gctx, result.Token, result.RefreshToken)
 
+	data := gin.H{}
+	if shouldExposeTokens(gctx) {
+		data["token"] = result.Token
+		data["refreshToken"] = result.RefreshToken
+	}
+
 	gctx.JSON(http.StatusOK, types.ApiResponse{
 		Success: true,
-		Data: gin.H{
-			"token":        result.Token,
-			"refreshToken": result.RefreshToken,
-		},
+		Data:    data,
 	})
 }
 
@@ -295,13 +320,17 @@ func (ctrl *AuthController) LoginEmpresa(gctx *gin.Context) {
 
 	setSessionCookies(gctx, result.Token, result.RefreshToken)
 
+	data := gin.H{
+		"user":     result.User,
+		"permisos": result.Permisos,
+	}
+	if shouldExposeTokens(gctx) {
+		data["token"] = result.Token
+		data["refreshToken"] = result.RefreshToken
+	}
+
 	gctx.JSON(http.StatusOK, types.ApiResponse{
 		Success: true,
-		Data: gin.H{
-			"token":        result.Token,
-			"refreshToken": result.RefreshToken,
-			"user":         result.User,
-			"permisos":     result.Permisos,
-		},
+		Data:    data,
 	})
 }

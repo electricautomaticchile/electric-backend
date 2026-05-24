@@ -22,7 +22,7 @@ func NewArduinoController(bridge *arduino.SerialBridge) *ArduinoController {
 // SetupRoutes configura las rutas del controlador
 func (ctrl *ArduinoController) SetupRoutes(router *gin.RouterGroup) {
 	g := router.Group("/arduino")
-	g.Use(middleware.AuthMiddleware())
+	g.Use(middleware.AuthMiddleware(), middleware.CSRFMiddleware())
 	g.GET("/status", ctrl.GetStatus)
 	g.GET("/ports", ctrl.ListPorts)
 	g.POST("/connect", ctrl.Connect)

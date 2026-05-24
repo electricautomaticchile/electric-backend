@@ -24,7 +24,7 @@ func NewMapaController(dispositivoService *services.DispositivoService, clienteS
 // SetupRoutes configura las rutas del controlador
 func (ctrl *MapaController) SetupRoutes(router *gin.RouterGroup) {
 	g := router.Group("/mapa")
-	g.Use(middleware.AuthMiddleware())
+	g.Use(middleware.AuthMiddleware(), middleware.CSRFMiddleware())
 	g.GET("/datos", ctrl.ObtenerDatosMapa)
 }
 

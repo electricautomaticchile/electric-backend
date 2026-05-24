@@ -22,7 +22,7 @@ func NewDashboardController(dashboardService *services.DashboardService) *Dashbo
 // SetupRoutes configura las rutas del controlador
 func (ctrl *DashboardController) SetupRoutes(router *gin.RouterGroup) {
 	g := router.Group("/dashboard")
-	g.Use(middleware.AuthMiddleware())
+	g.Use(middleware.AuthMiddleware(), middleware.CSRFMiddleware())
 	g.GET("/estadisticas", ctrl.ObtenerEstadisticas)
 }
 

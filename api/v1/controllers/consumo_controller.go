@@ -27,7 +27,7 @@ func NewConsumoController(consumoService *services.ConsumoService, dispositivoFa
 // SetupRoutes configura las rutas del controlador
 func (c *ConsumoController) SetupRoutes(router *gin.RouterGroup) {
 	g := router.Group("/consumo")
-	g.Use(middleware.AuthMiddleware())
+	g.Use(middleware.AuthMiddleware(), middleware.CSRFMiddleware())
 	g.GET("/cliente/:clienteId/calcular", c.CalcularCostoActual)
 	g.GET("/cliente/:clienteId/actual", c.ObtenerConsumoActual)
 }

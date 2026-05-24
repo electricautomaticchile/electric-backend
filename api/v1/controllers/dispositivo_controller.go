@@ -25,7 +25,7 @@ func NewDispositivoController(dispositivoFacade *facades.DispositivoFacade) *Dis
 // SetupRoutes configura las rutas CRUD del controlador (con AuthMiddleware)
 func (ctrl *DispositivoController) SetupRoutes(router *gin.RouterGroup) {
 	g := router.Group("/dispositivos")
-	g.Use(middleware.AuthMiddleware())
+	g.Use(middleware.AuthMiddleware(), middleware.CSRFMiddleware())
 	g.GET("", ctrl.ObtenerTodos)
 	g.GET("/:id", ctrl.ObtenerPorID)
 	g.POST("", ctrl.Crear)
@@ -101,6 +101,10 @@ func (ctrl *DispositivoController) ObtenerPorID(gctx *gin.Context) {
 		gctx.Error(err)
 		return
 	}
+	if !middleware.CanAccessResource(gctx, dispositivo.ClienteID, dispositivo.EmpresaID, true) {
+		gctx.Error(types.ThrowPower("No tienes acceso a este dispositivo"))
+		return
+	}
 
 	gctx.JSON(http.StatusOK, gin.H{
 		"success": true,
@@ -110,11 +114,21 @@ func (ctrl *DispositivoController) ObtenerPorID(gctx *gin.Context) {
 
 func (ctrl *DispositivoController) ObtenerPorCliente(gctx *gin.Context) {
 	clienteID := gctx.Param("clienteId")
+	if middleware.IsClienteContext(gctx) && middleware.UserID(gctx) != clienteID {
+		gctx.Error(types.ThrowPower("No tienes acceso a los dispositivos de este cliente"))
+		return
+	}
 
 	dispositivos, err := ctrl.dispositivoFacade.ObtenerPorCliente(gctx.Request.Context(), clienteID)
 	if err != nil {
 		gctx.Error(err)
 		return
+	}
+	for _, dispositivo := range dispositivos {
+		if !middleware.CanAccessResource(gctx, dispositivo.ClienteID, dispositivo.EmpresaID, true) {
+			gctx.Error(types.ThrowPower("No tienes acceso a los dispositivos de este cliente"))
+			return
+		}
 	}
 
 	gctx.JSON(http.StatusOK, gin.H{
@@ -124,11 +138,17 @@ func (ctrl *DispositivoController) ObtenerPorCliente(gctx *gin.Context) {
 }
 
 func (ctrl *DispositivoController) Crear(gctx *gin.Context) {
+	if !middleware.IsEmpresaContext(gctx) || middleware.EmpresaID(gctx) == "" {
+		gctx.Error(types.ThrowPower("Solo una empresa autenticada puede crear dispositivos"))
+		return
+	}
+
 	var r recipe.CrearDispositivoRecipe
 	if err := gctx.ShouldBindJSON(&r); err != nil {
 		gctx.Error(types.ThrowRecipe("Datos inválidos", ""))
 		return
 	}
+	r.EmpresaID = middleware.EmpresaID(gctx)
 
 	dispositivo, err := ctrl.dispositivoFacade.Crear(gctx.Request.Context(), &r)
 	if err != nil {
@@ -145,6 +165,16 @@ func (ctrl *DispositivoController) Crear(gctx *gin.Context) {
 
 func (ctrl *DispositivoController) Actualizar(gctx *gin.Context) {
 	id := gctx.Param("id")
+
+	dispositivoActual, err := ctrl.dispositivoFacade.ObtenerPorID(gctx.Request.Context(), id)
+	if err != nil {
+		gctx.Error(err)
+		return
+	}
+	if !middleware.CanAccessResource(gctx, dispositivoActual.ClienteID, dispositivoActual.EmpresaID, false) {
+		gctx.Error(types.ThrowPower("No tienes permisos para actualizar este dispositivo"))
+		return
+	}
 
 	var r recipe.ActualizarDispositivoRecipe
 	if err := gctx.ShouldBindJSON(&r); err != nil {
@@ -168,6 +198,16 @@ func (ctrl *DispositivoController) Actualizar(gctx *gin.Context) {
 func (ctrl *DispositivoController) AsignarCliente(gctx *gin.Context) {
 	id := gctx.Param("id")
 
+	dispositivoActual, err := ctrl.dispositivoFacade.ObtenerPorID(gctx.Request.Context(), id)
+	if err != nil {
+		gctx.Error(err)
+		return
+	}
+	if !middleware.CanAccessResource(gctx, dispositivoActual.ClienteID, dispositivoActual.EmpresaID, false) {
+		gctx.Error(types.ThrowPower("No tienes permisos para asignar este dispositivo"))
+		return
+	}
+
 	var r recipe.AsignarDispositivoRecipe
 	if err := gctx.ShouldBindJSON(&r); err != nil {
 		gctx.Error(types.ThrowRecipe("Datos inválidos", ""))
@@ -189,6 +229,16 @@ func (ctrl *DispositivoController) AsignarCliente(gctx *gin.Context) {
 
 func (ctrl *DispositivoController) DesasignarCliente(gctx *gin.Context) {
 	id := gctx.Param("id")
+
+	dispositivoActual, err := ctrl.dispositivoFacade.ObtenerPorID(gctx.Request.Context(), id)
+	if err != nil {
+		gctx.Error(err)
+		return
+	}
+	if !middleware.CanAccessResource(gctx, dispositivoActual.ClienteID, dispositivoActual.EmpresaID, false) {
+		gctx.Error(types.ThrowPower("No tienes permisos para desasignar este dispositivo"))
+		return
+	}
 
 	dispositivo, err := ctrl.dispositivoFacade.AsignarCliente(gctx.Request.Context(), id, "")
 	if err != nil {
@@ -227,13 +277,23 @@ func (ctrl *DispositivoController) ActualizarLectura(gctx *gin.Context) {
 func (ctrl *DispositivoController) CambiarEstado(gctx *gin.Context) {
 	id := gctx.Param("id")
 
+	dispositivoActual, err := ctrl.dispositivoFacade.ObtenerPorID(gctx.Request.Context(), id)
+	if err != nil {
+		gctx.Error(err)
+		return
+	}
+	if !middleware.CanAccessResource(gctx, dispositivoActual.ClienteID, dispositivoActual.EmpresaID, false) {
+		gctx.Error(types.ThrowPower("No tienes permisos para cambiar este dispositivo"))
+		return
+	}
+
 	var r recipe.CambiarEstadoDispositivoRecipe
 	if err := gctx.ShouldBindJSON(&r); err != nil {
 		gctx.Error(types.ThrowRecipe("Datos inválidos", ""))
 		return
 	}
 
-	err := ctrl.dispositivoFacade.CambiarEstado(gctx.Request.Context(), id, &r)
+	err = ctrl.dispositivoFacade.CambiarEstado(gctx.Request.Context(), id, &r)
 	if err != nil {
 		gctx.Error(err)
 		return
@@ -248,7 +308,17 @@ func (ctrl *DispositivoController) CambiarEstado(gctx *gin.Context) {
 func (ctrl *DispositivoController) Eliminar(gctx *gin.Context) {
 	id := gctx.Param("id")
 
-	err := ctrl.dispositivoFacade.Eliminar(gctx.Request.Context(), id)
+	dispositivoActual, err := ctrl.dispositivoFacade.ObtenerPorID(gctx.Request.Context(), id)
+	if err != nil {
+		gctx.Error(err)
+		return
+	}
+	if !middleware.CanAccessResource(gctx, dispositivoActual.ClienteID, dispositivoActual.EmpresaID, false) {
+		gctx.Error(types.ThrowPower("No tienes permisos para eliminar este dispositivo"))
+		return
+	}
+
+	err = ctrl.dispositivoFacade.Eliminar(gctx.Request.Context(), id)
 	if err != nil {
 		gctx.Error(err)
 		return

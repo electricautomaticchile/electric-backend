@@ -20,22 +20,22 @@ func NewIoTStatusController(dispositivoRepo *data.DispositivoRepository) *IoTSta
 // SetupRoutes configura las rutas del controlador
 func (ctrl *IoTStatusController) SetupRoutes(router *gin.RouterGroup) {
 	g := router.Group("/v1/iot")
-	g.Use(middleware.AuthMiddleware())
+	g.Use(middleware.AuthMiddleware(), middleware.CSRFMiddleware())
 	g.GET("/status", ctrl.GetAllStatus)
 }
 
 type DeviceStatus struct {
-	ID                string    `json:"id"`
-	NumeroDispositivo string    `json:"numeroDispositivo"`
-	Nombre            string    `json:"nombre"`
-	Estado            string    `json:"estado"`
-	Online            bool      `json:"online"`
+	ID                string     `json:"id"`
+	NumeroDispositivo string     `json:"numeroDispositivo"`
+	Nombre            string     `json:"nombre"`
+	Estado            string     `json:"estado"`
+	Online            bool       `json:"online"`
 	UltimaLectura     *time.Time `json:"ultimaLectura,omitempty"`
-	Voltaje           float64   `json:"voltaje,omitempty"`
-	Corriente         float64   `json:"corriente,omitempty"`
-	Potencia          float64   `json:"potencia,omitempty"`
-	Energia           float64   `json:"energia,omitempty"`
-	SenalGSM          string    `json:"senalGSM"`
+	Voltaje           float64    `json:"voltaje,omitempty"`
+	Corriente         float64    `json:"corriente,omitempty"`
+	Potencia          float64    `json:"potencia,omitempty"`
+	Energia           float64    `json:"energia,omitempty"`
+	SenalGSM          string     `json:"senalGSM"`
 }
 
 // GetAllStatus GET /api/v1/iot/status — Estado de todos los dispositivos

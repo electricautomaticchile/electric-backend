@@ -6,7 +6,7 @@ type LoginRecipe struct {
 }
 
 type CambiarPasswordRecipe struct {
-	PasswordActual string `json:"passwordActual"`
+	PasswordActual string `json:"passwordActual" binding:"required"`
 	PasswordNuevo  string `json:"passwordNuevo" binding:"required,password_strong"`
 }
 

@@ -21,7 +21,7 @@ func NewEstadisticaController(dashboardService *services.DashboardService) *Esta
 // SetupRoutes configura las rutas del controlador
 func (ctrl *EstadisticaController) SetupRoutes(router *gin.RouterGroup) {
 	g := router.Group("/estadisticas")
-	g.Use(middleware.AuthMiddleware())
+	g.Use(middleware.AuthMiddleware(), middleware.CSRFMiddleware())
 	g.GET("/cliente/:clienteId", ctrl.ObtenerConsumoCliente)
 	g.GET("/globales", ctrl.ObtenerEstadisticasGlobales)
 	g.GET("/resumen", ctrl.ObtenerResumen)

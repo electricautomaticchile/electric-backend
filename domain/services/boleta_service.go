@@ -8,6 +8,7 @@ import (
 	"electric-backend/infrastructure/email"
 	"electric-backend/infrastructure/entities"
 	"electric-backend/infrastructure/sms"
+	"electric-backend/types"
 	"fmt"
 	"log"
 	"time"
@@ -16,16 +17,16 @@ import (
 )
 
 type BoletaService struct {
-	boletaRepo          ports.PortBoleta
-	clienteRepo         ports.PortCliente
-	dispositivoRepo     ports.PortDispositivo
-	notificacionRepo    ports.PortNotificacion
-	tarifaRepo          ports.PortTarifa
-	emailService        email.EmailService
-	smsService          sms.SMSService
-	wsNotifier          *WebSocketNotifierService
+	boletaRepo       ports.PortBoleta
+	clienteRepo      ports.PortCliente
+	dispositivoRepo  ports.PortDispositivo
+	notificacionRepo ports.PortNotificacion
+	tarifaRepo       ports.PortTarifa
+	emailService     email.EmailService
+	smsService       sms.SMSService
+	wsNotifier       *WebSocketNotifierService
 	// Callback para ejecutar corte real en el dispositivo
-	OnCortarServicio      func(clienteID string)
+	OnCortarServicio func(clienteID string)
 	// Callback para restablecer servicio cuando el cliente paga
 	OnRestablecerServicio func(clienteID string)
 	// Callback para marcar corte pendiente (persistente ante reinicio)
@@ -89,8 +90,31 @@ func (s *BoletaService) ObtenerPorID(ctx context.Context, id string) (*models.Bo
 	return s.entityToModel(boleta), nil
 }
 
+func (s *BoletaService) ObtenerEmpresaCliente(ctx context.Context, clienteID string) (string, error) {
+	cliente, err := s.clienteRepo.FindByID(ctx, clienteID)
+	if err != nil {
+		return "", err
+	}
+	return cliente.EmpresaID, nil
+}
+
 func (s *BoletaService) Crear(ctx context.Context, r *recipe.CrearBoletaRecipe) (*models.BoletaModel, error) {
-	clienteID, _ := primitive.ObjectIDFromHex(r.ClienteID)
+	clienteID, err := primitive.ObjectIDFromHex(r.ClienteID)
+	if err != nil {
+		return nil, types.ThrowRecipe("ClienteID inválido", "clienteId")
+	}
+
+	cliente, err := s.clienteRepo.FindByID(ctx, r.ClienteID)
+	if err != nil {
+		return nil, err
+	}
+	if cliente.EmpresaID == "" {
+		return nil, types.ThrowPower("El cliente no tiene empresa asociada")
+	}
+	empresaID, err := primitive.ObjectIDFromHex(cliente.EmpresaID)
+	if err != nil {
+		return nil, types.ThrowRecipe("EmpresaID inválido", "empresaId")
+	}
 
 	// Calcular fecha de vencimiento: último día del mes siguiente
 	ahora := time.Now()
@@ -99,6 +123,7 @@ func (s *BoletaService) Crear(ctx context.Context, r *recipe.CrearBoletaRecipe) 
 
 	entity := &entities.BoletaEntity{
 		ClienteID:        clienteID,
+		EmpresaID:        empresaID,
 		Monto:            r.Monto,
 		Periodo:          r.Periodo,
 		Mes:              int(ahora.Month()),

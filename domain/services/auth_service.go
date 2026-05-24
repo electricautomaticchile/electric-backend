@@ -117,11 +117,9 @@ func (s *AuthService) ObtenerPerfil(ctx context.Context, userID string) (*models
 func (s *AuthService) CambiarPassword(ctx context.Context, userID string, r *recipe.CambiarPasswordRecipe) error {
 	empresa, err := s.empresaRepo.FindByID(ctx, userID)
 	if err == nil && empresa != nil {
-		if !empresa.PasswordTemporal && r.PasswordActual != "" {
-			err = bcrypt.CompareHashAndPassword([]byte(empresa.Password), []byte(r.PasswordActual))
-			if err != nil {
-				return types.ThrowData("Contraseña actual incorrecta")
-			}
+		err = bcrypt.CompareHashAndPassword([]byte(empresa.Password), []byte(r.PasswordActual))
+		if err != nil {
+			return types.ThrowData("Contraseña actual incorrecta")
 		}
 
 		hashedPassword, err := bcrypt.GenerateFromPassword([]byte(r.PasswordNuevo), 12)
@@ -137,13 +135,13 @@ func (s *AuthService) CambiarPassword(ctx context.Context, userID string, r *rec
 		return types.ThrowData("Usuario no encontrado")
 	}
 
-	esPasswordTemporal := cliente.PasswordTemporal != ""
-
-	if !esPasswordTemporal && cliente.Password != "" && r.PasswordActual != "" {
+	if cliente.Password != "" {
 		err = bcrypt.CompareHashAndPassword([]byte(cliente.Password), []byte(r.PasswordActual))
 		if err != nil {
 			return types.ThrowData("Contraseña actual incorrecta")
 		}
+	} else {
+		return types.ThrowData("Contraseña actual incorrecta")
 	}
 
 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(r.PasswordNuevo), 12)

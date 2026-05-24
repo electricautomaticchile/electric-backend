@@ -44,7 +44,7 @@ func NewDashboardClienteController(
 
 func (ctrl *DashboardClienteController) SetupRoutes(router *gin.RouterGroup) {
 	dashboard := router.Group("/dashboard/cliente")
-	dashboard.Use(middleware.AuthMiddleware())
+	dashboard.Use(middleware.AuthMiddleware(), middleware.CSRFMiddleware())
 	{
 		dashboard.GET("", ctrl.ObtenerTodo)
 		dashboard.GET("/resumen", ctrl.ObtenerResumen)
@@ -56,7 +56,7 @@ func (ctrl *DashboardClienteController) SetupRoutes(router *gin.RouterGroup) {
 	}
 
 	servicio := router.Group("/servicio-electrico")
-	servicio.Use(middleware.AuthMiddleware())
+	servicio.Use(middleware.AuthMiddleware(), middleware.CSRFMiddleware())
 	{
 		servicio.GET("/:clienteId", ctrl.ObtenerEstadoServicio)
 		servicio.POST("/:clienteId/cortar", ctrl.CortarServicio)
@@ -65,10 +65,29 @@ func (ctrl *DashboardClienteController) SetupRoutes(router *gin.RouterGroup) {
 	}
 
 	clientes := router.Group("/clientes")
-	clientes.Use(middleware.AuthMiddleware())
+	clientes.Use(middleware.AuthMiddleware(), middleware.CSRFMiddleware())
 	{
 		clientes.GET("/mi-dispositivo", ctrl.ObtenerMiDispositivo)
 	}
+}
+
+func (ctrl *DashboardClienteController) autorizarClienteParam(gctx *gin.Context, clienteID string, allowClienteSelf bool) bool {
+	if middleware.IsClienteContext(gctx) && allowClienteSelf && middleware.UserID(gctx) == clienteID {
+		return true
+	}
+
+	cliente, err := ctrl.clienteFacade.ObtenerPorID(gctx.Request.Context(), clienteID)
+	if err != nil {
+		gctx.Error(err)
+		return false
+	}
+
+	if !middleware.CanAccessResource(gctx, cliente.ID, cliente.EmpresaID, allowClienteSelf) {
+		gctx.Error(types.ThrowPower("No tienes acceso a este cliente"))
+		return false
+	}
+
+	return true
 }
 
 func (ctrl *DashboardClienteController) ObtenerTodo(gctx *gin.Context) {
@@ -326,6 +345,9 @@ func (ctrl *DashboardClienteController) ActualizarPerfil(gctx *gin.Context) {
 
 func (ctrl *DashboardClienteController) ObtenerEstadoServicio(gctx *gin.Context) {
 	clienteId := gctx.Param("clienteId")
+	if !ctrl.autorizarClienteParam(gctx, clienteId, true) {
+		return
+	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
@@ -437,6 +459,9 @@ func leerEstadoServicioCliente(clienteId string) string {
 
 func (ctrl *DashboardClienteController) CortarServicio(gctx *gin.Context) {
 	clienteId := gctx.Param("clienteId")
+	if !ctrl.autorizarClienteParam(gctx, clienteId, false) {
+		return
+	}
 
 	persistirEstadoServicioCliente(clienteId, "cortado")
 	ctrl.enviarComandoDispositivo(clienteId, "DESACTIVAR_SERVICIO")
@@ -460,6 +485,9 @@ func (ctrl *DashboardClienteController) CortarServicio(gctx *gin.Context) {
 
 func (ctrl *DashboardClienteController) RestablecerServicio(gctx *gin.Context) {
 	clienteId := gctx.Param("clienteId")
+	if !ctrl.autorizarClienteParam(gctx, clienteId, true) {
+		return
+	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()

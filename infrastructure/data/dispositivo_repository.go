@@ -29,13 +29,7 @@ func (r *DispositivoRepository) FindAll(ctx context.Context, empresaID string) (
 		return []*entities.DispositivoEntity{}, nil
 	}
 
-	filter := bson.M{
-		"$or": []bson.M{
-			{"empresaId": empresaObjectID},
-			{"empresaId": primitive.NilObjectID},
-			{"empresaId": bson.M{"$exists": false}},
-		},
-	}
+	filter := bson.M{"empresaId": empresaObjectID}
 
 	cursor, err := r.collection.Find(ctx, filter)
 	if err != nil {

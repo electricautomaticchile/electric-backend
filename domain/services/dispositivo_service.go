@@ -96,6 +96,14 @@ func (s *DispositivoService) Crear(ctx context.Context, r *recipe.CrearDispositi
 		return nil, types.ThrowRecipe("EmpresaID inválido", "empresaId")
 	}
 
+	cliente, err := s.clienteRepo.FindByID(ctx, r.ClienteID)
+	if err != nil {
+		return nil, err
+	}
+	if cliente.EmpresaID != r.EmpresaID {
+		return nil, types.ThrowPower("El cliente no pertenece a esta empresa")
+	}
+
 	entity := &entities.DispositivoEntity{
 		NumeroDispositivo: r.NumeroDispositivo,
 		Nombre:            r.Nombre,
@@ -143,6 +151,13 @@ func (s *DispositivoService) AsignarCliente(ctx context.Context, id string, clie
 		clienteOID, err := primitive.ObjectIDFromHex(clienteID)
 		if err != nil {
 			return nil, types.ThrowRecipe("ClienteID inválido", "clienteId")
+		}
+		cliente, err := s.clienteRepo.FindByID(ctx, clienteID)
+		if err != nil {
+			return nil, err
+		}
+		if !dispositivo.EmpresaID.IsZero() && cliente.EmpresaID != dispositivo.EmpresaID.Hex() {
+			return nil, types.ThrowPower("El cliente no pertenece a la empresa del dispositivo")
 		}
 		dispositivo.ClienteID = clienteOID
 	}

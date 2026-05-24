@@ -5,7 +5,7 @@ type CrearDispositivoRecipe struct {
 	Nombre            string `json:"nombre" binding:"required,max=100"`
 	Tipo              string `json:"tipo" binding:"required,oneof=medidor sensor controlador gateway"`
 	ClienteID         string `json:"clienteId" binding:"required"`
-	EmpresaID         string `json:"empresaId" binding:"required"`
+	EmpresaID         string `json:"empresaId,omitempty"`
 }
 
 type ActualizarDispositivoRecipe struct {

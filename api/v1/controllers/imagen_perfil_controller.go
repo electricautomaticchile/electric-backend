@@ -22,7 +22,7 @@ func NewImagenPerfilController(service *services.ImagenPerfilService) *ImagenPer
 // SetupRoutes configura las rutas del controlador
 func (ctrl *ImagenPerfilController) SetupRoutes(router *gin.RouterGroup) {
 	g := router.Group("/imagenes-perfil")
-	g.Use(middleware.AuthMiddleware())
+	g.Use(middleware.AuthMiddleware(), middleware.CSRFMiddleware())
 	g.POST("/:tipoUsuario/:userId/upload", ctrl.SubirYActualizarImagen)
 	g.GET("/:tipoUsuario/:userId", ctrl.ObtenerImagenPerfil)
 	g.DELETE("/:tipoUsuario/:userId", ctrl.EliminarImagenPerfil)

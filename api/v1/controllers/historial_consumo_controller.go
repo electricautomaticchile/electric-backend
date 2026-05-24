@@ -24,7 +24,7 @@ func NewHistorialConsumoController() *HistorialConsumoController {
 
 func (ctrl *HistorialConsumoController) SetupRoutes(router *gin.RouterGroup) {
 	h := router.Group("/historial-consumo")
-	h.Use(middleware.AuthMiddleware())
+	h.Use(middleware.AuthMiddleware(), middleware.CSRFMiddleware())
 	{
 		h.GET("/:clienteId", ctrl.ObtenerHistorial)
 		h.GET("/:clienteId/estadisticas", ctrl.ObtenerEstadisticas)

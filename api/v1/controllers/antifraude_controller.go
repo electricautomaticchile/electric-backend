@@ -22,7 +22,7 @@ func NewAntifraudeController(monitoreoService *services.MonitoreoService) *Antif
 // SetupRoutes configura las rutas del controlador
 func (ctrl *AntifraudeController) SetupRoutes(router *gin.RouterGroup) {
 	g := router.Group("/antifraude")
-	g.Use(middleware.AuthMiddleware())
+	g.Use(middleware.AuthMiddleware(), middleware.CSRFMiddleware())
 	g.GET("/anomalias", ctrl.DetectarAnomalias)
 	g.GET("/estadisticas", ctrl.ObtenerEstadisticas)
 }

@@ -29,7 +29,7 @@ func NewReportesController(service *services.ReportesService) *ReportesControlle
 // SetupRoutes configura las rutas del controlador
 func (c *ReportesController) SetupRoutes(router *gin.RouterGroup) {
 	g := router.Group("/reportes")
-	g.Use(middleware.AuthMiddleware())
+	g.Use(middleware.AuthMiddleware(), middleware.CSRFMiddleware())
 	g.GET("/clientes", c.Clientes)
 	g.GET("/dispositivos", c.Dispositivos)
 	g.GET("/alertas", c.Alertas)

@@ -30,7 +30,7 @@ func (ctrl *CotizacionController) SetupRoutes(router *gin.RouterGroup) {
 		cotizaciones.POST("", ctrl.Crear)
 
 		// Rutas protegidas
-		cotizaciones.Use(middleware.AuthMiddleware())
+		cotizaciones.Use(middleware.AuthMiddleware(), middleware.CSRFMiddleware())
 		{
 			cotizaciones.GET("", ctrl.ObtenerTodas)
 			cotizaciones.GET("/:id", ctrl.ObtenerPorID)
@@ -46,7 +46,7 @@ func (ctrl *CotizacionController) ObtenerTodas(gctx *gin.Context) {
 	// Parámetros de paginación
 	page, _ := strconv.Atoi(gctx.DefaultQuery("page", "1"))
 	limit, _ := strconv.Atoi(gctx.DefaultQuery("limit", "10"))
-	
+
 	if page < 1 {
 		page = 1
 	}

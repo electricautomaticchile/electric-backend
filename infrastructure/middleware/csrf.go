@@ -3,6 +3,7 @@ package middleware
 import (
 	"context"
 	"crypto/rand"
+	"crypto/subtle"
 	"encoding/base64"
 	"fmt"
 	"net/http"
@@ -10,6 +11,7 @@ import (
 	"time"
 
 	"electric-backend/config"
+	"electric-backend/types"
 
 	"github.com/gin-gonic/gin"
 )
@@ -29,6 +31,8 @@ type csrfFallbackStore struct {
 var csrfMemStore = &csrfFallbackStore{
 	tokens: make(map[string]csrfTokenEntry),
 }
+
+var csrfCleanupOnce sync.Once
 
 func generateCSRFToken() (string, error) {
 	b := make([]byte, 32)
@@ -116,13 +120,15 @@ func csrfGet(sessionID string) (string, bool) {
 
 func CSRFMiddleware() gin.HandlerFunc {
 	// Cleanup de memoria cada hora
-	go func() {
-		ticker := time.NewTicker(1 * time.Hour)
-		defer ticker.Stop()
-		for range ticker.C {
-			csrfCleanupMemory()
-		}
-	}()
+	csrfCleanupOnce.Do(func() {
+		go func() {
+			ticker := time.NewTicker(1 * time.Hour)
+			defer ticker.Stop()
+			for range ticker.C {
+				csrfCleanupMemory()
+			}
+		}()
+	})
 
 	return func(c *gin.Context) {
 		if c.Request.Method == "GET" || c.Request.Method == "HEAD" || c.Request.Method == "OPTIONS" {
@@ -130,14 +136,12 @@ func CSRFMiddleware() gin.HandlerFunc {
 			return
 		}
 
-		sessionID := c.GetString("session_id")
-		if sessionID == "" {
-			userID, exists := c.Get("userID")
-			if exists {
-				sessionID = userID.(string)
-			}
+		if c.GetString("authSource") != AuthSourceCookie {
+			c.Next()
+			return
 		}
 
+		sessionID := csrfSessionID(c)
 		if sessionID == "" {
 			c.JSON(http.StatusForbidden, gin.H{
 				"success": false,
@@ -162,7 +166,7 @@ func CSRFMiddleware() gin.HandlerFunc {
 		}
 
 		serverToken, exists := csrfGet(sessionID)
-		if !exists || serverToken != clientToken {
+		if !exists || subtle.ConstantTimeCompare([]byte(serverToken), []byte(clientToken)) != 1 {
 			c.JSON(http.StatusForbidden, gin.H{
 				"success": false,
 				"message": "Token CSRF inválido",
@@ -176,13 +180,7 @@ func CSRFMiddleware() gin.HandlerFunc {
 }
 
 func GetCSRFToken(c *gin.Context) string {
-	sessionID := c.GetString("session_id")
-	if sessionID == "" {
-		userID, exists := c.Get("userID")
-		if exists {
-			sessionID = userID.(string)
-		}
-	}
+	sessionID := csrfSessionID(c)
 	if sessionID == "" {
 		return ""
 	}
@@ -197,6 +195,30 @@ func GetCSRFToken(c *gin.Context) string {
 		return newToken
 	}
 	return token
+}
+
+func csrfSessionID(c *gin.Context) string {
+	sessionID := c.GetString("session_id")
+	if sessionID == "" {
+		userID, exists := c.Get("userID")
+		if exists {
+			sessionID = userID.(string)
+		}
+	}
+	if sessionID == "" {
+		if userID := c.GetString("userId"); userID != "" {
+			sessionID = userID
+		}
+	}
+	if sessionID == "" {
+		if uid := c.Request.Context().Value(types.ContextKeyUserID); uid != nil {
+			if userID, ok := uid.(string); ok {
+				sessionID = userID
+			}
+		}
+	}
+
+	return sessionID
 }
 
 func GenerateCSRFTokenForSession(sessionID string) (string, error) {

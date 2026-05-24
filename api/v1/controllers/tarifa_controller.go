@@ -24,7 +24,7 @@ func NewTarifaController(tarifaService *services.TarifaService) *TarifaControlle
 // SetupRoutes configura las rutas del controlador
 func (c *TarifaController) SetupRoutes(router *gin.RouterGroup) {
 	g := router.Group("/tarifas")
-	g.Use(middleware.AuthMiddleware())
+	g.Use(middleware.AuthMiddleware(), middleware.CSRFMiddleware())
 	g.GET("", c.ObtenerTodas)
 	g.GET("/activa", c.ObtenerActiva)
 	g.GET("/:id", c.ObtenerPorID)
@@ -55,28 +55,28 @@ func (c *TarifaController) Crear(gctx *gin.Context) {
 func (c *TarifaController) ObtenerTodas(gctx *gin.Context) {
 	page, _ := strconv.Atoi(gctx.DefaultQuery("page", "1"))
 	limit, _ := strconv.Atoi(gctx.DefaultQuery("limit", "50"))
-	
+
 	if page < 1 {
 		page = 1
 	}
 	if limit < 1 || limit > 100 {
 		limit = 50
 	}
-	
+
 	skip := (page - 1) * limit
-	
+
 	tarifas, err := c.tarifaService.ObtenerTodasTarifas(gctx.Request.Context())
 	if err != nil {
 		gctx.Error(err)
 		return
 	}
-	
+
 	total := len(tarifas)
 	end := skip + limit
 	if end > total {
 		end = total
 	}
-	
+
 	paginatedTarifas := tarifas
 	if skip < total {
 		paginatedTarifas = tarifas[skip:end]

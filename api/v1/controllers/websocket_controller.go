@@ -2,13 +2,13 @@ package controllers
 
 import (
 	"electric-backend/config"
+	"electric-backend/infrastructure/middleware"
 	"electric-backend/infrastructure/websocket"
 	"log"
 	"net/http"
 	"strings"
 
 	"github.com/gin-gonic/gin"
-	"github.com/golang-jwt/jwt/v5"
 	gorillaws "github.com/gorilla/websocket"
 )
 
@@ -31,13 +31,6 @@ var upgrader = gorillaws.Upgrader{
 	},
 }
 
-type wsClaims struct {
-	UserID    string `json:"userId"`
-	UserType  string `json:"userType"`
-	EmpresaID string `json:"empresaId,omitempty"`
-	jwt.RegisteredClaims
-}
-
 type WebSocketController struct {
 	hub *websocket.Hub
 }
@@ -55,13 +48,10 @@ func (ctrl *WebSocketController) SetupRoutes(router *gin.RouterGroup) {
 
 func (ctrl *WebSocketController) HandleWebSocket(gctx *gin.Context) {
 
-	// Obtener token: cookie primero (más seguro), luego query param, luego header
+	// Obtener token: cookie primero (web), luego header Bearer (clientes nativos).
 	tokenStr := ""
 	if c, err := gctx.Cookie("auth_token"); err == nil && c != "" {
 		tokenStr = c
-	}
-	if tokenStr == "" {
-		tokenStr = gctx.Query("token")
 	}
 	if tokenStr == "" {
 		if h := gctx.GetHeader("Authorization"); strings.HasPrefix(h, "Bearer ") {
@@ -76,12 +66,8 @@ func (ctrl *WebSocketController) HandleWebSocket(gctx *gin.Context) {
 		return
 	}
 
-	// Validar JWT directamente (sin depender del middleware)
-	claims := &wsClaims{}
-	token, err := jwt.ParseWithClaims(tokenStr, claims, func(t *jwt.Token) (interface{}, error) {
-		return []byte(config.AppConfig.JWTSecret), nil
-	})
-	if err != nil || !token.Valid {
+	claims, err := middleware.ParseJWTClaims(tokenStr)
+	if err != nil {
 		gctx.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Token inválido"})
 		return
 	}

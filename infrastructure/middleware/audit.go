@@ -66,6 +66,10 @@ func AuditMiddleware(auditService *services.AuditLogService) gin.HandlerFunc {
 
 		c.Next()
 
+		userID = UserID(c)
+		userType = UserType(c)
+		empresaID = EmpresaID(c)
+
 		duration := time.Since(startTime).Milliseconds()
 
 		var responseBody map[string]interface{}

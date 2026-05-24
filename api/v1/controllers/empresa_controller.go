@@ -24,7 +24,7 @@ func NewEmpresaController(empresaFacade *facades.EmpresaFacade) *EmpresaControll
 // SetupRoutes configura las rutas del controlador
 func (ctrl *EmpresaController) SetupRoutes(router *gin.RouterGroup) {
 	g := router.Group("/empresas")
-	g.Use(middleware.AuthMiddleware())
+	g.Use(middleware.AuthMiddleware(), middleware.CSRFMiddleware())
 	g.GET("", ctrl.ObtenerTodas)
 	g.GET("/:id", ctrl.ObtenerPorID)
 	g.POST("", ctrl.Crear)

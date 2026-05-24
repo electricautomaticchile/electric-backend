@@ -22,7 +22,7 @@ func NewNotificacionController(notificacionService *services.NotificacionService
 // SetupRoutes configura las rutas del controlador
 func (ctrl *NotificacionController) SetupRoutes(router *gin.RouterGroup) {
 	g := router.Group("/notificaciones")
-	g.Use(middleware.AuthMiddleware())
+	g.Use(middleware.AuthMiddleware(), middleware.CSRFMiddleware())
 	g.GET("", ctrl.Listar)
 	g.PUT("/:id/marcar-leida", ctrl.MarcarLeida)
 	g.PUT("/marcar-todas-leidas", ctrl.MarcarTodasLeidas)
@@ -93,9 +93,9 @@ func (ctrl *NotificacionController) MarcarLeida(gctx *gin.Context) {
 	}
 
 	gctx.JSON(http.StatusOK, gin.H{
-"success": true,
-"message": "Notificación marcada como leída",
-})
+		"success": true,
+		"message": "Notificación marcada como leída",
+	})
 }
 
 func (ctrl *NotificacionController) MarcarTodasLeidas(gctx *gin.Context) {
@@ -108,9 +108,9 @@ func (ctrl *NotificacionController) MarcarTodasLeidas(gctx *gin.Context) {
 	}
 
 	gctx.JSON(http.StatusOK, gin.H{
-"success": true,
-"message": "Todas las notificaciones marcadas como leídas",
-})
+		"success": true,
+		"message": "Todas las notificaciones marcadas como leídas",
+	})
 }
 
 func (ctrl *NotificacionController) Eliminar(gctx *gin.Context) {
@@ -130,11 +130,11 @@ func (ctrl *NotificacionController) Eliminar(gctx *gin.Context) {
 
 func (ctrl *NotificacionController) Resolver(gctx *gin.Context) {
 	id := gctx.Param("id")
-	
+
 	var body struct {
 		Resolucion string `json:"resolucion" binding:"required"`
 	}
-	
+
 	if err := gctx.ShouldBindJSON(&body); err != nil {
 		gctx.Error(types.ThrowRecipe("Datos inválidos", ""))
 		return

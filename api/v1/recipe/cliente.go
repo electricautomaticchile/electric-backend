@@ -10,7 +10,7 @@ type CrearClienteRecipe struct {
 	Rut           string `json:"rut,omitempty" binding:"omitempty,rut"`
 	TipoCliente   string `json:"tipoCliente,omitempty" binding:"omitempty,max=50"`
 	Empresa       string `json:"empresa,omitempty" binding:"omitempty,max=100"`
-	EmpresaID     string `json:"empresaId" binding:"required"`
+	EmpresaID     string `json:"empresaId,omitempty"`
 }
 
 type ActualizarClienteRecipe struct {

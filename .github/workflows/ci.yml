@@ -1,0 +1,43 @@
+name: Backend CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      rollback_sha:
+        description: "Commit SHA to redeploy for rollback"
+        required: false
+        type: string
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache-dependency-path: go.sum
+      - name: Verify modules
+        run: go mod verify
+      - name: Test
+        run: go test ./...
+      - name: Vet
+        run: go vet ./...
+      - name: Build
+        run: go build ./...
+
+  rollback:
+    if: github.event_name == 'workflow_dispatch' && inputs.rollback_sha != ''
+    runs-on: ubuntu-latest
+    needs: validate
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - run: |
+          git checkout "${{ inputs.rollback_sha }}"
+          echo "Rollback candidate checked out: ${{ inputs.rollback_sha }}"
+          echo "Connect this step to the backend deploy provider CLI using protected environment secrets."
