@@ -297,11 +297,11 @@ func (ctrl *AuthController) RegistroEmpresa(gctx *gin.Context) {
 	gctx.JSON(http.StatusCreated, types.ApiResponse{
 		Success: true,
 		Data: gin.H{
-			"empresa":          empresa,
-			"numeroCliente":    empresa.NumeroCliente,
-			"passwordTemporal": empresa.Password,
+			"empresa":              empresa,
+			"numeroCliente":        empresa.NumeroCliente,
+			"credencialesEnviadas": true,
 		},
-		Message: "Empresa registrada correctamente. Guarda tu número de cliente y contraseña temporal",
+		Message: "Empresa registrada correctamente. Las credenciales temporales fueron enviadas por email",
 	})
 }
 

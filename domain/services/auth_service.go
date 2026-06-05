@@ -230,7 +230,10 @@ func (s *AuthService) RegistrarEmpresa(ctx context.Context, r *recipe.RegistroEm
 		return nil, types.ThrowData("Ya existe una empresa con este RUT")
 	}
 
-	passwordTemporal := s.generarPasswordTemporal()
+	passwordTemporal, err := s.generarPasswordTemporal()
+	if err != nil {
+		return nil, err
+	}
 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(passwordTemporal), 12)
 	if err != nil {
 		return nil, err
@@ -281,7 +284,13 @@ func (s *AuthService) RegistrarEmpresa(ctx context.Context, r *recipe.RegistroEm
 		return nil, err
 	}
 
-	empresa.Password = passwordTemporal
+	go s.emailService.EnviarCredenciales(
+		empresa.ContactoPrincipal.Correo,
+		empresa.ContactoPrincipal.Nombre,
+		numeroCliente,
+		passwordTemporal,
+	)
+	empresa.Password = ""
 
 	return empresa, nil
 }
@@ -318,10 +327,12 @@ func (s *AuthService) calcularDigitoVerificador(numero int) string {
 }
 
 // CRIT-06: Generar password temporal criptográficamente seguro
-func (s *AuthService) generarPasswordTemporal() string {
+func (s *AuthService) generarPasswordTemporal() (string, error) {
 	bytes := make([]byte, 16)
-	rand.Read(bytes)
-	return hex.EncodeToString(bytes)
+	if _, err := rand.Read(bytes); err != nil {
+		return "", err
+	}
+	return "Tmp-" + hex.EncodeToString(bytes), nil
 }
 
 // Convertir empresa a cliente para respuesta uniforme

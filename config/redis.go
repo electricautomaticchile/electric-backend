@@ -45,9 +45,8 @@ func ConnectRedis(host, port, password, dbStr string) error {
 	_, err = RedisClient.Ping(ctx).Result()
 	if err != nil {
 		log.Printf("⚠️ No se pudo conectar a Redis (%s:%s): %v", host, port, err)
-		log.Println("ℹ️ La aplicación continuará sin cache (rate limiter y CSRF usarán memoria)")
 		RedisClient = nil
-		return nil
+		return err
 	}
 
 	log.Printf("✅ Conectado a Redis en %s:%s", host, port)

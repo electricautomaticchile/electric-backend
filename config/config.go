@@ -3,17 +3,22 @@ package config
 import (
 	"log"
 	"os"
+	"strconv"
 	"strings"
+	"time"
 
 	"github.com/joho/godotenv"
 )
 
 // Config contiene toda la configuración de la aplicación
 type Config struct {
-	Port        string
-	MongoURI    string
-	JWTSecret   string
-	Environment string
+	Port          string
+	MongoURI      string
+	MongoDatabase string
+	MongoMaxPool  uint64
+	MongoMinPool  uint64
+	JWTSecret     string
+	Environment   string
 
 	// Redis
 	RedisHost     string
@@ -45,7 +50,24 @@ type Config struct {
 	WebSocketAPIURL string
 
 	// IoT
-	IoTAPIKey string
+	IoTAPIKey              string
+	IoTTokenCacheTTL       time.Duration
+	IoTIngestAsync         bool
+	IoTIngestQueueSize     int
+	IoTIngestBatchSize     int
+	IoTIngestWorkers       int
+	IoTIngestFlushInterval time.Duration
+	IoTIngestWriteTimeout  time.Duration
+	IoTIngestMaxRetries    int
+
+	// Landing leads ingestion
+	LeadIngestAsync         bool
+	LeadIngestQueueSize     int
+	LeadIngestBatchSize     int
+	LeadIngestWorkers       int
+	LeadIngestFlushInterval time.Duration
+	LeadIngestWriteTimeout  time.Duration
+	LeadIngestMaxRetries    int
 }
 
 var AppConfig *Config
@@ -74,10 +96,13 @@ func LoadConfig() *Config {
 	}
 
 	AppConfig = &Config{
-		Port:        getEnv("PORT", "4000"),
-		MongoURI:    getEnv("MONGODB_URI", "mongodb://localhost:27017/electricautomaticchile"),
-		JWTSecret:   getEnv("JWT_SECRET", ""),
-		Environment: getEnv("NODE_ENV", "development"),
+		Port:          getEnv("PORT", "4000"),
+		MongoURI:      getEnv("MONGODB_URI", "mongodb://localhost:27017/electricautomaticchile"),
+		MongoDatabase: getEnv("MONGODB_DATABASE", "electricautomaticchile"),
+		MongoMaxPool:  uint64(getEnvInt("MONGODB_MAX_POOL_SIZE", 800)),
+		MongoMinPool:  uint64(getEnvInt("MONGODB_MIN_POOL_SIZE", 20)),
+		JWTSecret:     getEnv("JWT_SECRET", ""),
+		Environment:   getEnv("NODE_ENV", "development"),
 
 		RedisHost:     getEnv("REDIS_HOST", "localhost"),
 		RedisPort:     getEnv("REDIS_PORT", "6379"),
@@ -101,7 +126,23 @@ func LoadConfig() *Config {
 
 		WebSocketAPIURL: getEnv("WEBSOCKET_API_URL", "http://localhost:5000"),
 
-		IoTAPIKey: getEnv("IOT_API_KEY", ""),
+		IoTAPIKey:              getEnv("IOT_API_KEY", ""),
+		IoTTokenCacheTTL:       getEnvDurationMS("IOT_TOKEN_CACHE_TTL_MS", 5*time.Minute),
+		IoTIngestAsync:         getEnvBool("IOT_INGEST_ASYNC", true),
+		IoTIngestQueueSize:     getEnvInt("IOT_INGEST_QUEUE_SIZE", 100000),
+		IoTIngestBatchSize:     getEnvInt("IOT_INGEST_BATCH_SIZE", 1000),
+		IoTIngestWorkers:       getEnvInt("IOT_INGEST_WORKERS", 4),
+		IoTIngestFlushInterval: getEnvDurationMS("IOT_INGEST_FLUSH_INTERVAL_MS", 100*time.Millisecond),
+		IoTIngestWriteTimeout:  getEnvDurationMS("IOT_INGEST_WRITE_TIMEOUT_MS", 15*time.Second),
+		IoTIngestMaxRetries:    getEnvInt("IOT_INGEST_MAX_RETRIES", 3),
+
+		LeadIngestAsync:         getEnvBool("LEAD_INGEST_ASYNC", true),
+		LeadIngestQueueSize:     getEnvInt("LEAD_INGEST_QUEUE_SIZE", 50000),
+		LeadIngestBatchSize:     getEnvInt("LEAD_INGEST_BATCH_SIZE", 500),
+		LeadIngestWorkers:       getEnvInt("LEAD_INGEST_WORKERS", 4),
+		LeadIngestFlushInterval: getEnvDurationMS("LEAD_INGEST_FLUSH_INTERVAL_MS", 100*time.Millisecond),
+		LeadIngestWriteTimeout:  getEnvDurationMS("LEAD_INGEST_WRITE_TIMEOUT_MS", 15*time.Second),
+		LeadIngestMaxRetries:    getEnvInt("LEAD_INGEST_MAX_RETRIES", 3),
 	}
 
 	if AppConfig.JWTSecret == "" {
@@ -122,4 +163,43 @@ func getEnv(key, defaultValue string) string {
 		return value
 	}
 	return defaultValue
+}
+
+func getEnvInt(key string, defaultValue int) int {
+	value := strings.TrimSpace(os.Getenv(key))
+	if value == "" {
+		return defaultValue
+	}
+	parsed, err := strconv.Atoi(value)
+	if err != nil || parsed < 1 {
+		return defaultValue
+	}
+	return parsed
+}
+
+func getEnvBool(key string, defaultValue bool) bool {
+	value := strings.ToLower(strings.TrimSpace(os.Getenv(key)))
+	if value == "" {
+		return defaultValue
+	}
+	switch value {
+	case "1", "true", "yes", "y", "on":
+		return true
+	case "0", "false", "no", "n", "off":
+		return false
+	default:
+		return defaultValue
+	}
+}
+
+func getEnvDurationMS(key string, defaultValue time.Duration) time.Duration {
+	value := strings.TrimSpace(os.Getenv(key))
+	if value == "" {
+		return defaultValue
+	}
+	parsed, err := strconv.Atoi(value)
+	if err != nil || parsed < 0 {
+		return defaultValue
+	}
+	return time.Duration(parsed) * time.Millisecond
 }

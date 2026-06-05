@@ -202,17 +202,16 @@ func (ctrl *ClienteController) Crear(gctx *gin.Context) {
 		return
 	}
 
-	passwordTemporal := cliente.PasswordTemporal
 	cliente.PasswordTemporal = ""
 
 	gctx.JSON(http.StatusCreated, types.ApiResponse{
 		Success: true,
 		Data: gin.H{
-			"cliente":          cliente,
-			"numeroCliente":    cliente.NumeroCliente,
-			"passwordTemporal": passwordTemporal,
+			"cliente":              cliente,
+			"numeroCliente":        cliente.NumeroCliente,
+			"credencialesEnviadas": true,
 		},
-		Message: "Cliente creado correctamente. Guarda el número de cliente y contraseña temporal",
+		Message: "Cliente creado correctamente. Las credenciales temporales fueron enviadas por email",
 	})
 }
 

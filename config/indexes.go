@@ -222,6 +222,34 @@ func CreateIndexes(db *mongo.Database) error {
 			},
 		},
 		{
+			collection: "leads",
+			indexes: []mongo.IndexModel{
+				{
+					Keys: bson.D{
+						{Key: "createdAt", Value: -1},
+					},
+				},
+				{
+					Keys: bson.D{
+						{Key: "status", Value: 1},
+						{Key: "createdAt", Value: -1},
+					},
+				},
+				{
+					Keys: bson.D{
+						{Key: "type", Value: 1},
+						{Key: "status", Value: 1},
+						{Key: "createdAt", Value: -1},
+					},
+				},
+				{
+					Keys: bson.D{
+						{Key: "email", Value: 1},
+					},
+				},
+			},
+		},
+		{
 			collection: "notificaciones",
 			indexes: []mongo.IndexModel{
 				{
@@ -250,6 +278,33 @@ func CreateIndexes(db *mongo.Database) error {
 						{Key: "expiresAt", Value: 1},
 					},
 					Options: options.Index().SetExpireAfterSeconds(0),
+				},
+			},
+		},
+		{
+			collection: "leads",
+			indexes: []mongo.IndexModel{
+				{
+					Keys: bson.D{
+						{Key: "createdAt", Value: -1},
+					},
+				},
+				{
+					Keys: bson.D{
+						{Key: "type", Value: 1},
+						{Key: "createdAt", Value: -1},
+					},
+				},
+				{
+					Keys: bson.D{
+						{Key: "status", Value: 1},
+						{Key: "createdAt", Value: -1},
+					},
+				},
+				{
+					Keys: bson.D{
+						{Key: "email", Value: 1},
+					},
 				},
 			},
 		},
@@ -319,13 +374,13 @@ func CreateIndexes(db *mongo.Database) error {
 
 	for _, idx := range indexes {
 		collection := db.Collection(idx.collection)
-		
+
 		_, err := collection.Indexes().CreateMany(ctx, idx.indexes)
 		if err != nil {
 			logger.Error().Str("collection", idx.collection).Err(err).Msg("Error creando índices")
 			return err
 		}
-		
+
 		logger.Info().Str("collection", idx.collection).Msg("Índices creados para colección")
 	}
 

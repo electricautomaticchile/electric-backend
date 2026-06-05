@@ -23,7 +23,13 @@ func SetupRouter(
 ) *gin.Engine {
 	router := gin.New()
 	router.Use(gin.LoggerWithConfig(gin.LoggerConfig{
-		SkipPaths: []string{"/api/ws/connect"},
+		SkipPaths: []string{
+			"/health",
+			"/api/ws/connect",
+			"/api/leads",
+			"/api/iot/lectura",
+			"/api/iot/comando-ejecutado",
+		},
 	}))
 	router.Use(gin.Recovery())
 	router.Use(middleware.CORSMiddleware())

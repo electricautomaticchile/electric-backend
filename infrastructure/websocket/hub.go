@@ -77,16 +77,40 @@ func (h *Hub) Run() {
 			log.Printf("Client disconnected: %s", client.UserID)
 
 		case message := <-h.Broadcast:
-			h.mu.RLock()
+			h.mu.Lock()
 			for client := range h.Clients {
 				select {
 				case client.Send <- message:
 				default:
-					close(client.Send)
-					delete(h.Clients, client)
+					h.unregisterLocked(client)
 				}
 			}
-			h.mu.RUnlock()
+			h.mu.Unlock()
+		}
+	}
+}
+
+func (h *Hub) unregisterLocked(client *Client) {
+	if _, ok := h.Clients[client]; !ok {
+		return
+	}
+
+	delete(h.Clients, client)
+	close(client.Send)
+
+	if client.UserType == "empresa" && client.EmpresaID != "" {
+		if clients, ok := h.empresaClients[client.EmpresaID]; ok {
+			delete(clients, client)
+			if len(clients) == 0 {
+				delete(h.empresaClients, client.EmpresaID)
+			}
+		}
+	} else if client.UserType == "cliente" && client.UserID != "" {
+		if clients, ok := h.clienteClients[client.UserID]; ok {
+			delete(clients, client)
+			if len(clients) == 0 {
+				delete(h.clienteClients, client.UserID)
+			}
 		}
 	}
 }
@@ -101,51 +125,49 @@ func (h *Hub) BroadcastToAll(msg Message) {
 }
 
 func (h *Hub) BroadcastToEmpresa(empresaID string, msg Message) {
-	h.mu.RLock()
-	defer h.mu.RUnlock()
+	data, err := json.Marshal(msg)
+	if err != nil {
+		log.Printf("Error marshaling message: %v", err)
+		return
+	}
+
+	h.mu.Lock()
+	defer h.mu.Unlock()
 
 	clients, ok := h.empresaClients[empresaID]
 	if !ok {
 		return
 	}
 
+	for client := range clients {
+		select {
+		case client.Send <- data:
+		default:
+			h.unregisterLocked(client)
+		}
+	}
+}
+
+func (h *Hub) BroadcastToCliente(clienteID string, msg Message) {
 	data, err := json.Marshal(msg)
 	if err != nil {
 		log.Printf("Error marshaling message: %v", err)
 		return
 	}
 
-	for client := range clients {
-		select {
-		case client.Send <- data:
-		default:
-			close(client.Send)
-			delete(h.Clients, client)
-		}
-	}
-}
-
-func (h *Hub) BroadcastToCliente(clienteID string, msg Message) {
-	h.mu.RLock()
-	defer h.mu.RUnlock()
+	h.mu.Lock()
+	defer h.mu.Unlock()
 
 	clients, ok := h.clienteClients[clienteID]
 	if !ok {
 		return
 	}
 
-	data, err := json.Marshal(msg)
-	if err != nil {
-		log.Printf("Error marshaling message: %v", err)
-		return
-	}
-
 	for client := range clients {
 		select {
 		case client.Send <- data:
 		default:
-			close(client.Send)
-			delete(h.Clients, client)
+			h.unregisterLocked(client)
 		}
 	}
 }

@@ -9,7 +9,7 @@
 *.test
 
 # Output of the go coverage tool
-go.sum
+coverage.out
 
 # Dependency directories (remove the comment below to include it)
 # vendor/
@@ -25,6 +25,7 @@ go.work
 # Logs
 logs/
 *.log
+load-tests/results/
 
 # IDE
 .vscode/
@@ -40,6 +41,7 @@ Thumbs.db
 # Build output
 electric-backend
 electric-backend-server
+bin/
 tmp/
 
 # Air live reload

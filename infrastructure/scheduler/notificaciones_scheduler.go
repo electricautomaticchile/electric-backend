@@ -36,6 +36,24 @@ func (s *NotificacionesScheduler) Detener() {
 	close(s.stopChan)
 }
 
+func (s *NotificacionesScheduler) acquireTaskLock(ctx context.Context, taskName string, ttl time.Duration) bool {
+	if config.RedisClient == nil {
+		return true
+	}
+	ok, err := config.RedisClient.SetNX(ctx, "scheduler_lock:"+taskName, time.Now().Format(time.RFC3339Nano), ttl).Result()
+	if err != nil {
+		return false
+	}
+	return ok
+}
+
+func (s *NotificacionesScheduler) releaseTaskLock(ctx context.Context, taskName string) {
+	if config.RedisClient == nil {
+		return
+	}
+	config.RedisClient.Del(ctx, "scheduler_lock:"+taskName)
+}
+
 // ─── Persistencia de estado ─────────────────────────────────────────────────
 
 func (s *NotificacionesScheduler) getLastExecution(ctx context.Context, taskName string) (time.Time, error) {
@@ -100,7 +118,7 @@ func (s *NotificacionesScheduler) ejecutarNotificacionesQuincenales() {
 	if s.shouldExecute(ctx, "notificaciones_quincenales", 12*time.Hour) {
 		ahora := time.Now()
 		dia := ahora.Day()
-		if dia == 1 || dia == 15 {
+		if (dia == 1 || dia == 15) && s.acquireTaskLock(ctx, "notificaciones_quincenales", 30*time.Minute) {
 			err := s.smsService.EnviarNotificacionesConsumoQuincenal(ctx)
 			if err != nil {
 				fmt.Printf("Error enviando notificaciones quincenales (recuperación): %v\n", err)
@@ -108,6 +126,7 @@ func (s *NotificacionesScheduler) ejecutarNotificacionesQuincenales() {
 				s.setLastExecution(ctx, "notificaciones_quincenales", ahora)
 				fmt.Printf("Notificaciones quincenales recuperadas exitosamente el %s\n", ahora.Format("2006-01-02"))
 			}
+			s.releaseTaskLock(ctx, "notificaciones_quincenales")
 		}
 	}
 
@@ -124,6 +143,9 @@ func (s *NotificacionesScheduler) ejecutarNotificacionesQuincenales() {
 				if !s.shouldExecute(ctx, "notificaciones_quincenales", 12*time.Hour) {
 					continue
 				}
+				if !s.acquireTaskLock(ctx, "notificaciones_quincenales", 30*time.Minute) {
+					continue
+				}
 				err := s.smsService.EnviarNotificacionesConsumoQuincenal(ctx)
 				if err != nil {
 					fmt.Printf("Error enviando notificaciones quincenales: %v\n", err)
@@ -131,6 +153,7 @@ func (s *NotificacionesScheduler) ejecutarNotificacionesQuincenales() {
 					s.setLastExecution(ctx, "notificaciones_quincenales", ahora)
 					fmt.Printf("Notificaciones quincenales enviadas el %s\n", ahora.Format("2006-01-02"))
 				}
+				s.releaseTaskLock(ctx, "notificaciones_quincenales")
 			}
 		case <-s.stopChan:
 			return
@@ -142,13 +165,14 @@ func (s *NotificacionesScheduler) ejecutarNotificacionesQuincenales() {
 
 func (s *NotificacionesScheduler) ejecutarVerificacionBoletasImpagas() {
 	ctx := context.Background()
-	if s.shouldExecute(ctx, "verificacion_boletas", 12*time.Hour) {
+	if s.shouldExecute(ctx, "verificacion_boletas", 12*time.Hour) && s.acquireTaskLock(ctx, "verificacion_boletas", 30*time.Minute) {
 		err := s.smsService.VerificarYNotificarBoletasImpagas(ctx)
 		if err != nil {
 			fmt.Printf("Error verificando boletas impagas (recuperación): %v\n", err)
 		} else {
 			s.setLastExecution(ctx, "verificacion_boletas", time.Now())
 		}
+		s.releaseTaskLock(ctx, "verificacion_boletas")
 	}
 
 	ticker := time.NewTicker(24 * time.Hour)
@@ -161,12 +185,16 @@ func (s *NotificacionesScheduler) ejecutarVerificacionBoletasImpagas() {
 			if !s.shouldExecute(ctx, "verificacion_boletas", 12*time.Hour) {
 				continue
 			}
+			if !s.acquireTaskLock(ctx, "verificacion_boletas", 30*time.Minute) {
+				continue
+			}
 			err := s.smsService.VerificarYNotificarBoletasImpagas(ctx)
 			if err != nil {
 				fmt.Printf("Error verificando boletas impagas: %v\n", err)
 			} else {
 				s.setLastExecution(ctx, "verificacion_boletas", time.Now())
 			}
+			s.releaseTaskLock(ctx, "verificacion_boletas")
 		case <-s.stopChan:
 			return
 		}
@@ -192,6 +220,9 @@ func (s *NotificacionesScheduler) ejecutarVerificacionVencimientos() {
 			if !s.shouldExecute(ctx, "verificacion_vencimientos", 12*time.Hour) {
 				continue
 			}
+			if !s.acquireTaskLock(ctx, "verificacion_vencimientos", 30*time.Minute) {
+				continue
+			}
 			err := s.boletaService.VerificarVencimientos(ctx)
 			if err != nil {
 				fmt.Printf("Error verificando vencimientos: %v\n", err)
@@ -199,6 +230,7 @@ func (s *NotificacionesScheduler) ejecutarVerificacionVencimientos() {
 				s.setLastExecution(ctx, "verificacion_vencimientos", time.Now())
 				fmt.Printf("Vencimientos verificados el %s\n", time.Now().Format("2006-01-02"))
 			}
+			s.releaseTaskLock(ctx, "verificacion_vencimientos")
 		case <-s.stopChan:
 			return
 		}
@@ -220,9 +252,13 @@ func (s *NotificacionesScheduler) ejecutarVerificacionCortesContinua() {
 		select {
 		case <-ticker.C:
 			ctx := context.Background()
+			if !s.acquireTaskLock(ctx, "verificacion_cortes_continua", 4*time.Minute) {
+				continue
+			}
 			if err := s.boletaService.VerificarEscaladaCortes(ctx); err != nil {
 				fmt.Printf("Error en verificación continua de cortes: %v\n", err)
 			}
+			s.releaseTaskLock(ctx, "verificacion_cortes_continua")
 		case <-s.stopChan:
 			return
 		}
@@ -248,6 +284,9 @@ func (s *NotificacionesScheduler) ejecutarGeneracionBoletas() {
 				if !s.shouldExecute(ctx, "generacion_boletas", 20*time.Hour) {
 					continue
 				}
+				if !s.acquireTaskLock(ctx, "generacion_boletas", 60*time.Minute) {
+					continue
+				}
 				fmt.Printf("Generando boletas mensuales — %s\n", ahora.Format("2006-01-02"))
 				err := s.boletaService.GenerarBoletasMensuales(ctx)
 				if err != nil {
@@ -256,10 +295,10 @@ func (s *NotificacionesScheduler) ejecutarGeneracionBoletas() {
 					s.setLastExecution(ctx, "generacion_boletas", ahora)
 					fmt.Printf("Boletas generadas exitosamente el %s\n", ahora.Format("2006-01-02"))
 				}
+				s.releaseTaskLock(ctx, "generacion_boletas")
 			}
 		case <-s.stopChan:
 			return
 		}
 	}
 }
-

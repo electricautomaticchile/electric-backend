@@ -3,6 +3,8 @@ package server
 import (
 	"electric-backend/config"
 	"electric-backend/infrastructure/arduino"
+	"electric-backend/infrastructure/iot"
+	"electric-backend/infrastructure/leads"
 	"electric-backend/infrastructure/middleware"
 	"electric-backend/infrastructure/websocket"
 	"net/http"
@@ -16,7 +18,7 @@ func registerHealthRoutes(router *gin.Engine, wsHub *websocket.Hub, arduinoBridg
 	router.GET("/health", func(c *gin.Context) {
 		var memStats runtime.MemStats
 		runtime.ReadMemStats(&memStats)
-		c.JSON(http.StatusOK, gin.H{
+		payload := gin.H{
 			"status":    "ok",
 			"timestamp": time.Now().UTC(),
 			"memory": gin.H{
@@ -26,11 +28,18 @@ func registerHealthRoutes(router *gin.Engine, wsHub *websocket.Hub, arduinoBridg
 				"gc_cycles":      memStats.NumGC,
 			},
 			"goroutines": runtime.NumGoroutine(),
-		})
+		}
+		if ingestor := iot.DefaultReadingIngestor(); ingestor != nil {
+			payload["iot_ingestor"] = ingestor.Stats()
+		}
+		if ingestor := leads.DefaultLeadIngestor(); ingestor != nil {
+			payload["lead_ingestor"] = ingestor.Stats()
+		}
+		c.JSON(http.StatusOK, payload)
 	})
 
 	router.GET("/api/admin/health", middleware.AuthMiddleware(), middleware.RequireRole("empresa", "admin"), func(c *gin.Context) {
-		c.JSON(http.StatusOK, gin.H{
+		payload := gin.H{
 			"status":      "OK",
 			"message":     "API Electricautomaticchile funcionando correctamente",
 			"timestamp":   time.Now().Format(time.RFC3339),
@@ -40,6 +49,13 @@ func registerHealthRoutes(router *gin.Engine, wsHub *websocket.Hub, arduinoBridg
 			"redis":       gin.H{"connected": config.RedisClient != nil},
 			"websocket":   gin.H{"clients": wsHub.GetConnectedClients()},
 			"arduino":     gin.H{"connected": arduinoBridge.IsConnected(), "devices": len(arduinoBridge.GetDevices())},
-		})
+		}
+		if ingestor := iot.DefaultReadingIngestor(); ingestor != nil {
+			payload["iot_ingestor"] = ingestor.Stats()
+		}
+		if ingestor := leads.DefaultLeadIngestor(); ingestor != nil {
+			payload["lead_ingestor"] = ingestor.Stats()
+		}
+		c.JSON(http.StatusOK, payload)
 	})
 }

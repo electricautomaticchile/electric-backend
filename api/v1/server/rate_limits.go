@@ -11,6 +11,10 @@ func rateLimits() map[string]int {
 		"POST:/api/auth/cambiar-password":       10,
 		"POST:/api/auth/refresh-token":          20,
 
+		"POST:/api/leads":           20,
+		"GET:/api/leads":            60,
+		"PUT:/api/leads/:id/status": 30,
+
 		"GET:/api/clientes":        60,
 		"POST:/api/clientes":       20,
 		"PUT:/api/clientes/:id":    30,
@@ -55,7 +59,7 @@ func rateLimits() map[string]int {
 		"GET:/api/imagenes-perfil/:id":     100,
 		"DELETE:/api/imagenes-perfil/:id":  10,
 
-		"POST:/api/iot/lectura":           3000,
+		"POST:/api/iot/lectura":           300000,
 		"POST:/api/iot/comando-ejecutado": 500,
 	}
 }

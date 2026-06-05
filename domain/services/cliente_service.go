@@ -2,12 +2,14 @@ package services
 
 import (
 	"context"
+	"crypto/rand"
 	"electric-backend/api/v1/recipe"
 	"electric-backend/domain/models"
 	"electric-backend/domain/ports"
 	"electric-backend/infrastructure/email"
 	"electric-backend/infrastructure/validation"
 	"electric-backend/types"
+	"encoding/hex"
 	"fmt"
 	"log"
 	"time"
@@ -53,7 +55,10 @@ func (s *ClienteService) Crear(ctx context.Context, r *recipe.CrearClienteRecipe
 		numeroCliente = s.generarNumeroCliente()
 	}
 
-	passwordTemporal := s.generarPasswordTemporal()
+	passwordTemporal, err := s.generarPasswordTemporal()
+	if err != nil {
+		return nil, err
+	}
 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(passwordTemporal), 12)
 	if err != nil {
 		return nil, err
@@ -102,8 +107,12 @@ func (s *ClienteService) enviarCredencialesPorEmail(correo, nombre, numeroClient
 	}
 }
 
-func (s *ClienteService) generarPasswordTemporal() string {
-	return "Temp" + time.Now().Format("0601021504")
+func (s *ClienteService) generarPasswordTemporal() (string, error) {
+	bytes := make([]byte, 16)
+	if _, err := rand.Read(bytes); err != nil {
+		return "", err
+	}
+	return "Tmp-" + hex.EncodeToString(bytes), nil
 }
 
 func (s *ClienteService) generarNumeroCliente() string {

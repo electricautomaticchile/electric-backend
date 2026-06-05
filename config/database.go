@@ -14,18 +14,28 @@ import (
 var MongoDB *mongo.Database
 
 // ConnectDatabase conecta a MongoDB
-func ConnectDatabase(mongoURI string) error {
+func ConnectDatabase(mongoURI string, dbName string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
 	// HIGH-06: Configurar TLS explícito y timeouts adecuados
+	maxPoolSize := uint64(800)
+	minPoolSize := uint64(20)
+	if AppConfig != nil {
+		maxPoolSize = AppConfig.MongoMaxPool
+		minPoolSize = AppConfig.MongoMinPool
+	}
+	if minPoolSize > maxPoolSize {
+		minPoolSize = maxPoolSize
+	}
+
 	clientOptions := options.Client().
 		ApplyURI(mongoURI).
 		SetTLSConfig(&tls.Config{MinVersion: tls.VersionTLS12}).
 		SetServerSelectionTimeout(5 * time.Second).
 		SetConnectTimeout(10 * time.Second).
-		SetMaxPoolSize(300).
-		SetMinPoolSize(10)
+		SetMaxPoolSize(maxPoolSize).
+		SetMinPoolSize(minPoolSize)
 
 	client, err := mongo.Connect(ctx, clientOptions)
 	if err != nil {
@@ -38,11 +48,12 @@ func ConnectDatabase(mongoURI string) error {
 		return fmt.Errorf("error haciendo ping a MongoDB: %w", err)
 	}
 
-	// Obtener el nombre de la base de datos desde la URI
-	dbName := "electricautomaticchile"
+	if dbName == "" {
+		dbName = "electricautomaticchile"
+	}
 	MongoDB = client.Database(dbName)
 
-	log.Printf("✅ Conectado a MongoDB: %s", dbName)
+	log.Printf("✅ Conectado a MongoDB: %s (pool min=%d max=%d)", dbName, minPoolSize, maxPoolSize)
 	return nil
 }
 

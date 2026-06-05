@@ -25,7 +25,7 @@ func (w responseWriter) Write(b []byte) (int, error) {
 
 func AuditMiddleware(auditService *services.AuditLogService) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		if shouldSkipAudit(c.Request.URL.Path) {
+		if shouldSkipAudit(c.Request.Method, c.Request.URL.Path) {
 			c.Next()
 			return
 		}
@@ -121,7 +121,14 @@ func AuditMiddleware(auditService *services.AuditLogService) gin.HandlerFunc {
 	}
 }
 
-func shouldSkipAudit(path string) bool {
+func shouldSkipAudit(method string, path string) bool {
+	if strings.HasPrefix(path, "/api/iot/") {
+		return true
+	}
+	if method == "POST" && path == "/api/leads" {
+		return true
+	}
+
 	skipPaths := []string{
 		"/health",
 		"/api/ws/",

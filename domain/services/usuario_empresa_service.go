@@ -2,14 +2,15 @@ package services
 
 import (
 	"context"
+	"crypto/rand"
 	"electric-backend/api/v1/recipe"
 	"electric-backend/domain/models"
 	"electric-backend/domain/ports"
 	"electric-backend/infrastructure/email"
 	"electric-backend/infrastructure/validation"
 	"electric-backend/types"
+	"encoding/hex"
 	"fmt"
-	"time"
 
 	"golang.org/x/crypto/bcrypt"
 )
@@ -55,7 +56,10 @@ func (s *UsuarioEmpresaService) Crear(ctx context.Context, empresaID string, r *
 		return nil, types.ThrowData("Ya existe un usuario con este email")
 	}
 
-	passwordTemporal := s.generarPasswordTemporal()
+	passwordTemporal, err := s.generarPasswordTemporal()
+	if err != nil {
+		return nil, err
+	}
 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(passwordTemporal), 12)
 	if err != nil {
 		return nil, err
@@ -121,8 +125,12 @@ func (s *UsuarioEmpresaService) Eliminar(ctx context.Context, id string) error {
 	return s.usuarioRepo.Delete(ctx, id)
 }
 
-func (s *UsuarioEmpresaService) generarPasswordTemporal() string {
-	return "Temp" + time.Now().Format("0601021504")
+func (s *UsuarioEmpresaService) generarPasswordTemporal() (string, error) {
+	bytes := make([]byte, 16)
+	if _, err := rand.Read(bytes); err != nil {
+		return "", err
+	}
+	return "Tmp-" + hex.EncodeToString(bytes), nil
 }
 
 func (s *UsuarioEmpresaService) enviarCredencialesPorEmail(correo, nombre, email, passwordTemporal string) {

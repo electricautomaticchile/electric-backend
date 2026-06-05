@@ -4,10 +4,14 @@ import (
 	"electric-backend/api/v1/recipe"
 	"electric-backend/domain/facades"
 	"electric-backend/domain/models"
+	"electric-backend/infrastructure/entities"
+	"electric-backend/infrastructure/iot"
 	"electric-backend/infrastructure/middleware"
 	"electric-backend/types"
 	"net/http"
 	"strconv"
+	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
 )
@@ -347,6 +351,44 @@ func (ctrl *DispositivoController) RecibirLecturaIoT(gctx *gin.Context) {
 		return
 	}
 
+	payload.DeviceID = strings.TrimSpace(payload.DeviceID)
+	if tokenDeviceID, ok := gctx.Get("iot_device_id"); ok {
+		deviceID, _ := tokenDeviceID.(string)
+		if deviceID != "" {
+			if payload.DeviceID != "" && payload.DeviceID != deviceID {
+				gctx.JSON(http.StatusForbidden, gin.H{"error": "token no corresponde al dispositivo"})
+				return
+			}
+			payload.DeviceID = deviceID
+		}
+	}
+	if payload.DeviceID == "" {
+		gctx.JSON(http.StatusBadRequest, gin.H{"error": "deviceId requerido"})
+		return
+	}
+
+	lectura := &entities.LecturaDispositivo{
+		Voltage:        payload.Voltaje,
+		Current:        payload.Corriente,
+		ActivePower:    payload.Potencia,
+		Energy:         payload.Energia,
+		Frecuencia:     payload.Frecuencia,
+		FactorPotencia: payload.FactorPotencia,
+		Timestamp:      parseIoTTimestamp(payload.Timestamp),
+	}
+	if ingestor := iot.DefaultReadingIngestor(); ingestor != nil {
+		if !ingestor.Enqueue(iot.Reading{
+			DeviceID:   payload.DeviceID,
+			Lectura:    lectura,
+			ReceivedAt: time.Now().UTC(),
+		}) {
+			gctx.JSON(http.StatusServiceUnavailable, gin.H{"error": "cola de lecturas saturada"})
+			return
+		}
+		gctx.JSON(http.StatusOK, gin.H{"ok": true, "queued": true})
+		return
+	}
+
 	err := ctrl.dispositivoFacade.ActualizarLectura(
 		gctx.Request.Context(),
 		payload.DeviceID,
@@ -363,6 +405,16 @@ func (ctrl *DispositivoController) RecibirLecturaIoT(gctx *gin.Context) {
 	}
 
 	gctx.JSON(http.StatusOK, gin.H{"ok": true})
+}
+
+func parseIoTTimestamp(timestamp int64) time.Time {
+	if timestamp <= 0 {
+		return time.Now().UTC()
+	}
+	if timestamp > 1_000_000_000_000 {
+		return time.UnixMilli(timestamp).UTC()
+	}
+	return time.Unix(timestamp, 0).UTC()
 }
 
 func (ctrl *DispositivoController) ComandoEjecutado(gctx *gin.Context) {

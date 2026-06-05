@@ -10,6 +10,8 @@ import (
 	"electric-backend/infrastructure/aws"
 	"electric-backend/infrastructure/data"
 	"electric-backend/infrastructure/email"
+	"electric-backend/infrastructure/iot"
+	"electric-backend/infrastructure/leads"
 	"electric-backend/infrastructure/scheduler"
 	"electric-backend/infrastructure/sms"
 	"electric-backend/infrastructure/validation"
@@ -43,14 +45,21 @@ func main() {
 	registerValidators()
 
 	// 3. Databases
-	if err := config.ConnectDatabase(config.AppConfig.MongoURI); err != nil {
+	if err := config.ConnectDatabase(config.AppConfig.MongoURI, config.AppConfig.MongoDatabase); err != nil {
 		log.Fatalf("❌ Error conectando a MongoDB: %v", err)
 	}
 	defer config.DisconnectDatabase()
 	if err := config.CreateIndexes(config.MongoDB); err != nil {
 		log.Printf("⚠️ Error creando índices: %v", err)
 	}
+	iot.StartDefaultReadingIngestor(config.MongoDB, config.AppConfig)
+	defer iot.StopDefaultReadingIngestor(context.Background())
+	leads.StartDefaultLeadIngestor(config.MongoDB, config.AppConfig)
+	defer leads.StopDefaultLeadIngestor(context.Background())
 	if err := config.ConnectRedis(config.AppConfig.RedisHost, config.AppConfig.RedisPort, config.AppConfig.RedisPassword, config.AppConfig.RedisDB); err != nil {
+		if config.AppConfig.Environment == "production" {
+			log.Fatalf("❌ Redis es requerido en producción: %v", err)
+		}
 		log.Printf("⚠️ Redis no disponible: %v", err)
 	}
 	defer config.DisconnectRedis()
@@ -99,10 +108,15 @@ func main() {
 
 	// Verificación inicial SÍNCRONA — corre antes de que el Arduino se conecte
 	log.Println("🔍 Verificando vencimientos de boletas al inicio...")
-	if err := svc.BoletaService.VerificarVencimientos(context.Background()); err != nil {
-		log.Printf("⚠️ Error en verificación inicial: %v", err)
+	startupCtx := context.Background()
+	if acquireStartupLock(startupCtx) {
+		if err := svc.BoletaService.VerificarVencimientos(startupCtx); err != nil {
+			log.Printf("⚠️ Error en verificación inicial: %v", err)
+		} else {
+			log.Println("✅ Verificación inicial completada")
+		}
 	} else {
-		log.Println("✅ Verificación inicial completada")
+		log.Println("ℹ️ Verificación inicial ya está corriendo en otra instancia")
 	}
 
 	// Retomar cortes pendientes interrumpidos por reinicio del servidor
@@ -138,6 +152,17 @@ func main() {
 	arduinoBridge.Disconnect()
 	srv.Shutdown(shutdownCtx)
 	log.Println("✅ Servidor apagado")
+}
+
+func acquireStartupLock(ctx context.Context) bool {
+	if config.RedisClient == nil {
+		return true
+	}
+	ok, err := config.RedisClient.SetNX(ctx, "scheduler_lock:startup_vencimientos", time.Now().Format(time.RFC3339Nano), 10*time.Minute).Result()
+	if err != nil {
+		return false
+	}
+	return ok
 }
 
 func registerValidators() {
