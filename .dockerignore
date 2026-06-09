@@ -4,5 +4,12 @@ README.md
 .env
 .env.local
 tmp/
+bin/
+logs/
+dist/
+load-tests/results/
+electric-backend
+electric-backend-server
 *.log
 coverage.out
+*.test

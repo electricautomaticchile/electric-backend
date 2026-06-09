@@ -107,6 +107,42 @@ go test ./load-tests/seed-devices
 go build -o electric-backend main.go
 ```
 
+## Docker Local y Render
+
+Build local:
+
+```bash
+docker build -t electricautomaticchile-backend:local .
+```
+
+Para subir una imagen propia a Render, publicarla primero en un registry
+externo, por ejemplo Docker Hub o GHCR:
+
+```bash
+docker tag electricautomaticchile-backend:local docker.io/USUARIO/electricautomaticchile-backend:staging
+docker push docker.io/USUARIO/electricautomaticchile-backend:staging
+```
+
+Luego en Render usar `Deploy an existing image` y apuntar a esa imagen.
+
+Si Render construye desde el repositorio, siempre guardara la imagen resultante
+en su registry interno. Eso es normal; no significa que el backend dependa de
+AWS. El `Dockerfile` usa imagenes oficiales de Docker Hub.
+
+Variables minimas para que el contenedor no termine con `Exited with status 1`:
+
+```env
+PORT=4000
+MONGODB_URI=
+MONGODB_DATABASE=electricautomaticchile
+JWT_SECRET=
+S3_PUBLIC_URL=
+NODE_ENV=production
+```
+
+Si `NODE_ENV=production`, Redis tambien debe estar configurado porque el backend
+lo exige en produccion.
+
 ## Produccion
 
 - Usar `NODE_ENV=production` para activar Gin release mode.
