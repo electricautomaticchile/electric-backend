@@ -107,41 +107,54 @@ go test ./load-tests/seed-devices
 go build -o electric-backend main.go
 ```
 
-## Docker Local y Render
+## Render Nativo
+
+El despliegue recomendado en Render es Go nativo, sin Docker. El repositorio
+incluye `render.yaml` con:
+
+```yaml
+runtime: go
+buildCommand: go build -tags netgo -ldflags '-s -w' -o electric-backend-server .
+startCommand: ./electric-backend-server
+healthCheckPath: /health
+```
+
+Si se crea manualmente desde el dashboard:
+
+- Language/Runtime: `Go`.
+- Build Command: `go build -tags netgo -ldflags '-s -w' -o electric-backend-server .`.
+- Start Command: `./electric-backend-server`.
+- Health Check Path: `/health`.
+
+No seleccionar `Docker` ni `Deploy an existing image`. Si el servicio existente
+ya fue creado como Docker, lo mas limpio es crear un nuevo Web Service con
+runtime `Go` o sincronizar el Blueprint.
+
+Variables minimas para que Render no termine con `Exited with status 1`:
+
+```env
+NODE_ENV=production
+MONGODB_URI=
+MONGODB_DATABASE=electricautomaticchile
+JWT_SECRET=
+S3_PUBLIC_URL=
+CORS_ORIGINS=https://electricautomaticchile.com,https://www.electricautomaticchile.com
+```
+
+En produccion Redis es obligatorio. `render.yaml` crea un Render Key Value
+interno y conecta `REDIS_HOST`/`REDIS_PORT` automaticamente. El backend tambien
+acepta `REDIS_URL` si se configura Redis manualmente.
+
+## Docker Legacy
+
+El `Dockerfile` queda solo como alternativa local/legacy. Render no debe usarlo
+para este proyecto.
 
 Build local:
 
 ```bash
 docker build -t electricautomaticchile-backend:local .
 ```
-
-Para subir una imagen propia a Render, publicarla primero en un registry
-externo, por ejemplo Docker Hub o GHCR:
-
-```bash
-docker tag electricautomaticchile-backend:local docker.io/USUARIO/electricautomaticchile-backend:staging
-docker push docker.io/USUARIO/electricautomaticchile-backend:staging
-```
-
-Luego en Render usar `Deploy an existing image` y apuntar a esa imagen.
-
-Si Render construye desde el repositorio, siempre guardara la imagen resultante
-en su registry interno. Eso es normal; no significa que el backend dependa de
-AWS. El `Dockerfile` usa imagenes oficiales de Docker Hub.
-
-Variables minimas para que el contenedor no termine con `Exited with status 1`:
-
-```env
-PORT=4000
-MONGODB_URI=
-MONGODB_DATABASE=electricautomaticchile
-JWT_SECRET=
-S3_PUBLIC_URL=
-NODE_ENV=production
-```
-
-Si `NODE_ENV=production`, Redis tambien debe estar configurado porque el backend
-lo exige en produccion.
 
 ## Produccion
 

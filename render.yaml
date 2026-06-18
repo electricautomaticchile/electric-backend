@@ -1,0 +1,67 @@
+services:
+  - type: web
+    name: electric-backend
+    runtime: go
+    region: oregon
+    plan: starter
+    branch: master
+    buildCommand: go build -tags netgo -ldflags '-s -w' -o electric-backend-server .
+    startCommand: ./electric-backend-server
+    healthCheckPath: /health
+    maxShutdownDelaySeconds: 45
+    autoDeployTrigger: commit
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: MONGODB_URI
+        sync: false
+      - key: MONGODB_DATABASE
+        value: electricautomaticchile
+      - key: MONGODB_MAX_POOL_SIZE
+        value: "800"
+      - key: MONGODB_MIN_POOL_SIZE
+        value: "20"
+      - key: JWT_SECRET
+        generateValue: true
+      - key: S3_PUBLIC_URL
+        sync: false
+      - key: CORS_ORIGINS
+        value: https://electricautomaticchile.com,https://www.electricautomaticchile.com
+      - key: AUTH_COOKIE_DOMAIN
+        value: .electricautomaticchile.com
+      - key: REDIS_HOST
+        fromService:
+          type: keyvalue
+          name: electric-backend-redis
+          property: host
+      - key: REDIS_PORT
+        fromService:
+          type: keyvalue
+          name: electric-backend-redis
+          property: port
+      - key: REDIS_DB
+        value: "0"
+      - key: REDIS_TLS
+        value: "false"
+      - key: AWS_REGION
+        value: us-east-1
+      - key: AWS_ACCESS_KEY_ID
+        sync: false
+      - key: AWS_SECRET_ACCESS_KEY
+        sync: false
+      - key: AWS_S3_IMAGES_BUCKET_NAME
+        sync: false
+      - key: AWS_S3_BUCKET_NAME
+        sync: false
+      - key: EMAIL_FROM
+        value: noreply@electricautomaticchile.com
+      - key: TURNSTILE_SECRET_KEY
+        sync: false
+
+  - type: keyvalue
+    name: electric-backend-redis
+    region: oregon
+    plan: starter
+    ipAllowList: []
+    maxmemoryPolicy: allkeys-lru
+    persistenceMode: off

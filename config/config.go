@@ -2,6 +2,7 @@ package config
 
 import (
 	"log"
+	"net/url"
 	"os"
 	"strconv"
 	"strings"
@@ -144,6 +145,7 @@ func LoadConfig() *Config {
 		LeadIngestWriteTimeout:  getEnvDurationMS("LEAD_INGEST_WRITE_TIMEOUT_MS", 15*time.Second),
 		LeadIngestMaxRetries:    getEnvInt("LEAD_INGEST_MAX_RETRIES", 3),
 	}
+	applyRedisURL(AppConfig)
 
 	if AppConfig.JWTSecret == "" {
 		log.Fatal("❌ JWT_SECRET es requerido. Configura una clave de al menos 64 caracteres.")
@@ -156,6 +158,35 @@ func LoadConfig() *Config {
 	}
 
 	return AppConfig
+}
+
+func applyRedisURL(cfg *Config) {
+	raw := strings.TrimSpace(os.Getenv("REDIS_URL"))
+	if raw == "" {
+		return
+	}
+
+	parsed, err := url.Parse(raw)
+	if err != nil {
+		log.Printf("⚠️ REDIS_URL inválida, usando REDIS_HOST/REDIS_PORT: %v", err)
+		return
+	}
+
+	if host := parsed.Hostname(); host != "" {
+		cfg.RedisHost = host
+	}
+	if port := parsed.Port(); port != "" {
+		cfg.RedisPort = port
+	}
+	if password, ok := parsed.User.Password(); ok {
+		cfg.RedisPassword = password
+	}
+	if db := strings.Trim(parsed.Path, "/"); db != "" {
+		cfg.RedisDB = db
+	}
+	if parsed.Scheme == "rediss" && os.Getenv("REDIS_TLS") == "" {
+		os.Setenv("REDIS_TLS", "true")
+	}
 }
 
 func getEnv(key, defaultValue string) string {
