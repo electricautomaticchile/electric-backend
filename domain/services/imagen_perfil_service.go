@@ -3,13 +3,17 @@ package services
 import (
 	"context"
 	"electric-backend/domain/ports"
-	"electric-backend/infrastructure/aws"
 	"fmt"
 	"mime/multipart"
 )
 
+type profileImageStorage interface {
+	SubirImagenPerfil(file multipart.File, header *multipart.FileHeader, tipoUsuario string, userID string) (string, error)
+	EliminarImagen(imageURL string) error
+}
+
 type ImagenPerfilService struct {
-	s3Service   *aws.S3Service
+	storage     profileImageStorage
 	clienteRepo ports.PortCliente
 	empresaRepo ports.PortEmpresa
 }
@@ -17,21 +21,21 @@ type ImagenPerfilService struct {
 func NewImagenPerfilService(
 	clienteRepo ports.PortCliente,
 	empresaRepo ports.PortEmpresa,
-	s3Service *aws.S3Service,
+	storage profileImageStorage,
 ) *ImagenPerfilService {
 	return &ImagenPerfilService{
-		s3Service:   s3Service,
+		storage:     storage,
 		clienteRepo: clienteRepo,
 		empresaRepo: empresaRepo,
 	}
 }
 
 func (s *ImagenPerfilService) SubirImagenPerfil(file multipart.File, header *multipart.FileHeader, tipoUsuario string, userID string) (string, error) {
-	if s.s3Service == nil {
-		return "", fmt.Errorf("servicio S3 no configurado")
+	if s.storage == nil {
+		return "", fmt.Errorf("servicio de imágenes no configurado")
 	}
 
-	imageURL, err := s.s3Service.SubirImagenPerfil(file, header, tipoUsuario, userID)
+	imageURL, err := s.storage.SubirImagenPerfil(file, header, tipoUsuario, userID)
 	if err != nil {
 		return "", err
 	}
@@ -49,8 +53,8 @@ func (s *ImagenPerfilService) ActualizarImagenPerfil(imageURL string, tipoUsuari
 			return fmt.Errorf("cliente no encontrado: %w", err)
 		}
 
-		if cliente.ImagenPerfil != "" && s.s3Service != nil {
-			if err := s.s3Service.EliminarImagen(cliente.ImagenPerfil); err != nil {
+		if cliente.ImagenPerfil != "" && s.storage != nil {
+			if err := s.storage.EliminarImagen(cliente.ImagenPerfil); err != nil {
 				return fmt.Errorf("error eliminando imagen anterior: %w", err)
 			}
 		}
@@ -66,8 +70,8 @@ func (s *ImagenPerfilService) ActualizarImagenPerfil(imageURL string, tipoUsuari
 			return fmt.Errorf("empresa no encontrada: %w", err)
 		}
 
-		if empresa.ContactoPrincipal.ImagenPerfil != "" && s.s3Service != nil {
-			if err := s.s3Service.EliminarImagen(empresa.ContactoPrincipal.ImagenPerfil); err != nil {
+		if empresa.ContactoPrincipal.ImagenPerfil != "" && s.storage != nil {
+			if err := s.storage.EliminarImagen(empresa.ContactoPrincipal.ImagenPerfil); err != nil {
 				return fmt.Errorf("error eliminando imagen anterior: %w", err)
 			}
 		}
@@ -115,9 +119,9 @@ func (s *ImagenPerfilService) EliminarImagenPerfil(tipoUsuario string, userID st
 		return err
 	}
 
-	if imageURL != "" && s.s3Service != nil {
-		if err := s.s3Service.EliminarImagen(imageURL); err != nil {
-			return fmt.Errorf("error eliminando imagen de S3: %w", err)
+	if imageURL != "" && s.storage != nil {
+		if err := s.storage.EliminarImagen(imageURL); err != nil {
+			return fmt.Errorf("error eliminando imagen: %w", err)
 		}
 	}
 

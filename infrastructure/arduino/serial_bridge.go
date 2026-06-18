@@ -33,8 +33,8 @@ type SerialBridge struct {
 	aggregator      *ReadingAggregator
 	mu              sync.Mutex
 	// Umbrales de notificación por costo
-	costThresholds    map[string]float64 // deviceID → último umbral notificado
-	costThresholdsMu  sync.Mutex
+	costThresholds   map[string]float64 // deviceID → último umbral notificado
+	costThresholdsMu sync.Mutex
 }
 
 func NewSerialBridge(hub *websocket.Hub) *SerialBridge {
@@ -390,11 +390,7 @@ func (sb *SerialBridge) checkCostThreshold(data *ArduinoData) {
 	// Enviar SMS si tiene teléfono
 	if telefono != "" {
 		go func() {
-			snsService, err := sms.NewSNSService()
-			if err != nil {
-				log.Printf("⚠️ Error creando SNS service: %v", err)
-				return
-			}
+			smsService := sms.NewNoopService()
 			mensaje := fmt.Sprintf(
 				"⚡ Hola %s, tu consumo eléctrico ha alcanzado:\n"+
 					"💡 %.2f kWh\n"+
@@ -403,7 +399,7 @@ func (sb *SerialBridge) checkCostThreshold(data *ArduinoData) {
 					"- Electricautomaticchile",
 				nombreCliente, data.Energy, costoActual,
 			)
-			if err := snsService.EnviarSMS(telefono, mensaje); err != nil {
+			if err := smsService.EnviarSMS(telefono, mensaje); err != nil {
 				log.Printf("❌ Error enviando SMS de umbral a %s: %v", telefono, err)
 			} else {
 				log.Printf("✅ SMS de umbral enviado a %s ($%.0f CLP)", nombreCliente, costoActual)
@@ -414,7 +410,7 @@ func (sb *SerialBridge) checkCostThreshold(data *ArduinoData) {
 	// Enviar Email con template de consumo
 	if correo != "" {
 		go func() {
-			emailService := email.NewSESService()
+			emailService := email.NewNoopService(config.AppConfig.EmailFrom)
 			costoStr := fmt.Sprintf("$%.0f CLP", costoActual)
 			energiaStr := fmt.Sprintf("%.2f kWh", data.Energy)
 

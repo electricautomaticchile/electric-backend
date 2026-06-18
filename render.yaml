@@ -23,8 +23,6 @@ services:
         value: "20"
       - key: JWT_SECRET
         generateValue: true
-      - key: S3_PUBLIC_URL
-        sync: false
       - key: CORS_ORIGINS
         value: https://electricautomaticchile.com,https://www.electricautomaticchile.com
       - key: AUTH_COOKIE_DOMAIN
@@ -43,16 +41,6 @@ services:
         value: "0"
       - key: REDIS_TLS
         value: "false"
-      - key: AWS_REGION
-        value: us-east-1
-      - key: AWS_ACCESS_KEY_ID
-        sync: false
-      - key: AWS_SECRET_ACCESS_KEY
-        sync: false
-      - key: AWS_S3_IMAGES_BUCKET_NAME
-        sync: false
-      - key: AWS_S3_BUCKET_NAME
-        sync: false
       - key: EMAIL_FROM
         value: noreply@electricautomaticchile.com
       - key: TURNSTILE_SECRET_KEY

@@ -4,8 +4,8 @@ import "time"
 
 // Global circuit breakers for external services
 var (
-	CBSMS   = NewCircuitBreaker("SNS-SMS", WithMaxFailures(3), WithResetTimeout(60*time.Second))
-	CBEmail = NewCircuitBreaker("SES-Email", WithMaxFailures(5), WithResetTimeout(30*time.Second))
+	CBSMS   = NewCircuitBreaker("SMS", WithMaxFailures(3), WithResetTimeout(60*time.Second))
+	CBEmail = NewCircuitBreaker("Email", WithMaxFailures(5), WithResetTimeout(30*time.Second))
 	CBMongo = NewCircuitBreaker("MongoDB", WithMaxFailures(10), WithResetTimeout(15*time.Second))
 )
 

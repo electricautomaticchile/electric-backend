@@ -33,12 +33,6 @@ type Config struct {
 	// Auth cookies
 	AuthCookieDomain string
 
-	// AWS S3
-	AWSRegion      string
-	S3BucketImages string
-	S3BucketDocs   string
-	S3PublicURL    string
-
 	// Email
 	EmailFrom string
 
@@ -114,11 +108,6 @@ func LoadConfig() *Config {
 
 		AuthCookieDomain: getEnv("AUTH_COOKIE_DOMAIN", ""),
 
-		AWSRegion:      getEnv("AWS_REGION", "us-east-1"),
-		S3BucketImages: getEnv("AWS_S3_IMAGES_BUCKET_NAME", ""),
-		S3BucketDocs:   getEnv("AWS_S3_BUCKET_NAME", ""),
-		S3PublicURL:    getEnv("S3_PUBLIC_URL", ""),
-
 		EmailFrom: getEnv("EMAIL_FROM", "noreply@electricautomaticchile.com"),
 
 		InfobipAPIKey:  getEnv("INFOBIP_API_KEY", ""),
@@ -152,9 +141,6 @@ func LoadConfig() *Config {
 	}
 	if len(AppConfig.JWTSecret) < 32 {
 		log.Fatal("❌ JWT_SECRET debe tener al menos 32 caracteres.")
-	}
-	if AppConfig.S3PublicURL == "" {
-		log.Fatal("❌ S3_PUBLIC_URL es requerido. Configura la URL de CloudFront.")
 	}
 
 	return AppConfig

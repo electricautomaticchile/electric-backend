@@ -7,7 +7,6 @@ import (
 	"electric-backend/domain/facades"
 	"electric-backend/domain/services"
 	"electric-backend/infrastructure/arduino"
-	"electric-backend/infrastructure/aws"
 	"electric-backend/infrastructure/data"
 	"electric-backend/infrastructure/email"
 	"electric-backend/infrastructure/iot"
@@ -68,16 +67,8 @@ func main() {
 	repos := data.Build()
 
 	// 5. Servicios externos
-	emailSvc := email.NewSESService()
-	snsSvc, err := sms.NewSNSService()
-	if err != nil {
-		log.Printf("⚠️ SNS no disponible: %v", err)
-	}
-	s3Svc, err := aws.NewS3Service(config.AppConfig)
-	if err != nil {
-		log.Printf("⚠️ S3 no disponible: %v", err)
-		s3Svc = nil
-	}
+	emailSvc := email.NewNoopService(config.AppConfig.EmailFrom)
+	smsSvc := sms.NewNoopService()
 
 	// 6. WebSocket + Arduino — delay aumentado para que el scheduler corra primero
 	wsHub := websocket.InitializeHub()
@@ -95,14 +86,14 @@ func main() {
 	}
 
 	// 7. Services (build container)
-	ext := &services.ExternalDeps{WSHub: wsHub, EmailSvc: emailSvc, SMSSvc: snsSvc, S3Svc: s3Svc}
+	ext := &services.ExternalDeps{WSHub: wsHub, EmailSvc: emailSvc, SMSSvc: smsSvc}
 	svc := services.Build(repos, ext)
 
 	// 8. Facades (build container)
 	fc := facades.Build(svc)
 
 	// 9. Servicio eléctrico + Scheduler
-	svc.BoletaService.SetDependencies(repos.DispositivoRepo, repos.NotificacionRepo, repos.TarifaRepo, snsSvc, services.NewWebSocketNotifierService(wsHub))
+	svc.BoletaService.SetDependencies(repos.DispositivoRepo, repos.NotificacionRepo, repos.TarifaRepo, smsSvc, services.NewWebSocketNotifierService(wsHub))
 	servicioElectrico := services.NewServicioElectricoService(repos.DispositivoRepo, arduinoBridge)
 	svc.BoletaService.SetServicioElectrico(servicioElectrico)
 

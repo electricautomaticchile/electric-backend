@@ -10,7 +10,7 @@ servicios administrativos.
 - MongoDB disponible.
 - Redis disponible para produccion.
 - `k6` solo si se ejecutan pruebas de carga.
-- Credenciales externas opcionales segun modulo: AWS S3, Resend, SNS,
+- Credenciales externas opcionales segun modulo: proveedor de email/SMS/storage,
   Cloudflare Turnstile.
 
 ## Configuracion
@@ -137,7 +137,6 @@ NODE_ENV=production
 MONGODB_URI=
 MONGODB_DATABASE=electricautomaticchile
 JWT_SECRET=
-S3_PUBLIC_URL=
 CORS_ORIGINS=https://electricautomaticchile.com,https://www.electricautomaticchile.com
 ```
 
@@ -164,6 +163,8 @@ docker build -t electricautomaticchile-backend:local .
 - Si frontend y API viven en subdominios, usar
   `AUTH_COOKIE_DOMAIN=.electricautomaticchile.com`.
 - Mantener `JWT_SECRET` largo y rotado fuera del repositorio.
+- Email, SMS e imagenes de perfil estan temporalmente en modo no-op. Configurar
+  un proveedor nuevo antes de depender de notificaciones o uploads reales.
 - Configurar backup y monitoreo de MongoDB antes de operar con clientes reales.
 - Revisar logs, latencia p95, errores 5xx, conexiones a MongoDB, uso de Redis y
   metricas `*_ingestor`.

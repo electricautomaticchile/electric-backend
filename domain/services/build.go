@@ -1,7 +1,6 @@
 package services
 
 import (
-	"electric-backend/infrastructure/aws"
 	"electric-backend/infrastructure/data"
 	"electric-backend/infrastructure/email"
 	"electric-backend/infrastructure/sms"
@@ -35,7 +34,6 @@ type ExternalDeps struct {
 	WSHub    *websocket.Hub
 	EmailSvc email.EmailService
 	SMSSvc   sms.SMSService
-	S3Svc    *aws.S3Service
 }
 
 func Build(repos *data.DataContainer, ext *ExternalDeps) *ServiceContainer {
@@ -58,11 +56,6 @@ func Build(repos *data.DataContainer, ext *ExternalDeps) *ServiceContainer {
 	notificacionSMSService := NewNotificacionSMSService(repos.ClienteRepo, repos.BoletaRepo, repos.DispositivoRepo, ext.SMSSvc)
 	auditLogService := NewAuditLogService(repos.AuditLogRepo)
 
-	var imagenPerfilService *ImagenPerfilService
-	if ext.S3Svc != nil {
-		imagenPerfilService = NewImagenPerfilService(repos.ClienteRepo, repos.EmpresaRepo, ext.S3Svc)
-	}
-
 	return &ServiceContainer{
 		AuthService:            authService,
 		ClienteService:         clienteService,
@@ -78,7 +71,7 @@ func Build(repos *data.DataContainer, ext *ExternalDeps) *ServiceContainer {
 		DashboardService:       dashboardService,
 		ReportesService:        reportesService,
 		UsuarioEmpresaService:  usuarioEmpresaService,
-		ImagenPerfilService:    imagenPerfilService,
+		ImagenPerfilService:    nil,
 		NotificacionSMSService: notificacionSMSService,
 		AuditLogService:        auditLogService,
 		IAService:              NewIAService(),
