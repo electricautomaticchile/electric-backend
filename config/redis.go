@@ -14,8 +14,7 @@ import (
 
 var RedisClient *redis.Client
 
-// ConnectRedis conecta a Redis.
-// ElastiCache Serverless requiere TLS obligatorio con ServerName explícito.
+// ConnectRedis conecta a un servicio compatible con Redis.
 func ConnectRedis(host, port, password, dbStr string) error {
 	db, err := strconv.Atoi(dbStr)
 	if err != nil {
@@ -28,12 +27,11 @@ func ConnectRedis(host, port, password, dbStr string) error {
 		DB:       db,
 	}
 
-	// ElastiCache Serverless siempre requiere TLS.
-	// También funciona para Redis local si REDIS_TLS=true.
+	// Usar REDIS_TLS=true para proveedores que exigen rediss/TLS.
 	if os.Getenv("REDIS_TLS") == "true" {
 		opts.TLSConfig = &tls.Config{
 			MinVersion: tls.VersionTLS12,
-			ServerName: host, // Requerido para ElastiCache Serverless
+			ServerName: host,
 		}
 	}
 

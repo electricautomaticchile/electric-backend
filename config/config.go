@@ -26,6 +26,7 @@ type Config struct {
 	RedisPort     string
 	RedisPassword string
 	RedisDB       string
+	RequireRedis  bool
 
 	// CORS
 	CORSOrigins string
@@ -68,15 +69,14 @@ type Config struct {
 var AppConfig *Config
 
 // LoadConfig carga la configuración desde variables de entorno.
-// En producción (ECS Fargate), el secreto completo llega como JSON en la variable ENVIRONMENT.
+// En producción se usan variables de entorno del proveedor.
 // En desarrollo local se usa el archivo .env.
 func LoadConfig() *Config {
 	if err := godotenv.Load(); err != nil {
 		log.Println("No se encontró archivo .env, usando variables de entorno del sistema")
 	}
 
-	// ECS inyecta el secreto de Secrets Manager como JSON en la variable ENVIRONMENT.
-	// Lo parseamos y seteamos cada clave como env var individual.
+	// Compatibilidad con proveedores que inyectan un bloque KEY=VALUE en ENVIRONMENT.
 	if raw := os.Getenv("ENVIRONMENT"); raw != "" {
 		lines := strings.Split(raw, "\n")
 		for _, line := range lines {
@@ -103,6 +103,7 @@ func LoadConfig() *Config {
 		RedisPort:     getEnv("REDIS_PORT", "6379"),
 		RedisPassword: getEnv("REDIS_PASSWORD", ""),
 		RedisDB:       getEnv("REDIS_DB", "0"),
+		RequireRedis:  getEnvBool("REQUIRE_REDIS", false),
 
 		CORSOrigins: getEnv("CORS_ORIGINS", "http://localhost:3000"),
 

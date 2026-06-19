@@ -41,6 +41,8 @@ services:
         value: "0"
       - key: REDIS_TLS
         value: "false"
+      - key: REQUIRE_REDIS
+        value: "false"
       - key: EMAIL_FROM
         value: noreply@electricautomaticchile.com
       - key: TURNSTILE_SECRET_KEY

@@ -56,10 +56,10 @@ func main() {
 	leads.StartDefaultLeadIngestor(config.MongoDB, config.AppConfig)
 	defer leads.StopDefaultLeadIngestor(context.Background())
 	if err := config.ConnectRedis(config.AppConfig.RedisHost, config.AppConfig.RedisPort, config.AppConfig.RedisPassword, config.AppConfig.RedisDB); err != nil {
-		if config.AppConfig.Environment == "production" {
-			log.Fatalf("❌ Redis es requerido en producción: %v", err)
+		if config.AppConfig.RequireRedis {
+			log.Fatalf("❌ Redis es requerido por REQUIRE_REDIS=true: %v", err)
 		}
-		log.Printf("⚠️ Redis no disponible: %v", err)
+		log.Printf("⚠️ Redis no disponible, usando fallback en memoria: %v", err)
 	}
 	defer config.DisconnectRedis()
 

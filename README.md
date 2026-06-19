@@ -8,7 +8,7 @@ servicios administrativos.
 
 - Go 1.24 o superior.
 - MongoDB disponible.
-- Redis disponible para produccion.
+- Redis recomendado para produccion.
 - `k6` solo si se ejecutan pruebas de carga.
 - Credenciales externas opcionales segun modulo: proveedor de email/SMS/storage,
   Cloudflare Turnstile.
@@ -33,6 +33,7 @@ JWT_SECRET=clave-larga
 NODE_ENV=development
 REDIS_HOST=localhost
 REDIS_PORT=6379
+REQUIRE_REDIS=false
 CORS_ORIGINS=http://localhost:3000,http://localhost:8080
 AUTH_COOKIE_DOMAIN=
 TURNSTILE_SECRET_KEY=
@@ -140,9 +141,13 @@ JWT_SECRET=
 CORS_ORIGINS=https://electricautomaticchile.com,https://www.electricautomaticchile.com
 ```
 
-En produccion Redis es obligatorio. `render.yaml` crea un Render Key Value
-interno y conecta `REDIS_HOST`/`REDIS_PORT` automaticamente. El backend tambien
-acepta `REDIS_URL` si se configura Redis manualmente.
+En produccion Redis es recomendado para rate limiting, CSRF, locks y sesiones
+multi-instancia. `render.yaml` crea un Render Key Value interno y conecta
+`REDIS_HOST`/`REDIS_PORT` automaticamente si el servicio se administra desde el
+Blueprint. El backend tambien acepta `REDIS_URL` si se configura Redis
+manualmente. Mientras no este configurado, dejar `REQUIRE_REDIS=false` permite
+iniciar con fallback en memoria; cuando Redis este operativo, usar
+`REQUIRE_REDIS=true` para que el deploy falle si la cache no conecta.
 
 ## Docker Legacy
 
@@ -158,7 +163,8 @@ docker build -t electricautomaticchile-backend:local .
 ## Produccion
 
 - Usar `NODE_ENV=production` para activar Gin release mode.
-- Redis es obligatorio en produccion; si no conecta, el backend termina.
+- Redis recomendado en produccion; con `REQUIRE_REDIS=true`, si no conecta el
+  backend termina.
 - Configurar `CORS_ORIGINS` con dominios reales.
 - Si frontend y API viven en subdominios, usar
   `AUTH_COOKIE_DOMAIN=.electricautomaticchile.com`.
