@@ -110,7 +110,7 @@ func clearSessionCookies(gctx *gin.Context) {
 
 func shouldExposeTokens(gctx *gin.Context) bool {
 	clientType := strings.ToLower(gctx.GetHeader("X-Client-Type"))
-	return clientType == "mobile" || clientType == "native"
+	return clientType == "mobile" || clientType == "native" || clientType == "web"
 }
 
 func (ctrl *AuthController) Login(gctx *gin.Context) {
