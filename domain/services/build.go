@@ -3,8 +3,8 @@ package services
 import (
 	"electric-backend/infrastructure/data"
 	"electric-backend/infrastructure/email"
+	"electric-backend/infrastructure/eventbus"
 	"electric-backend/infrastructure/sms"
-	"electric-backend/infrastructure/websocket"
 )
 
 // ServiceContainer agrupa todos los servicios de dominio.
@@ -31,13 +31,13 @@ type ServiceContainer struct {
 
 // ExternalDeps groups external service dependencies.
 type ExternalDeps struct {
-	WSHub    *websocket.Hub
-	EmailSvc email.EmailService
-	SMSSvc   sms.SMSService
+	WSPublisher *eventbus.Publisher
+	EmailSvc    email.EmailService
+	SMSSvc      sms.SMSService
 }
 
 func Build(repos *data.DataContainer, ext *ExternalDeps) *ServiceContainer {
-	wsNotifier := NewWebSocketNotifierService(ext.WSHub)
+	wsNotifier := NewWebSocketNotifierService(ext.WSPublisher)
 
 	authService := NewAuthService(repos.EmpresaRepo, repos.ClienteRepo, repos.UsuarioEmpresaRepo, repos.RecoveryTokenRepo, repos.RefreshTokenRepo, ext.EmailSvc)
 	clienteService := NewClienteService(repos.ClienteRepo, ext.EmailSvc)

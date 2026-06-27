@@ -24,9 +24,8 @@ func (g *gzipWriter) WriteString(s string) (int, error) {
 
 func CompressionMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		// No comprimir conexiones WebSocket (se hace hijack del writer)
-		if strings.HasPrefix(c.Request.URL.Path, "/api/ws/") ||
-			strings.HasPrefix(c.Request.URL.Path, "/api/iot/") ||
+		// No comprimir rutas de ingestión (se hace hijack o el payload no lo amerita)
+		if strings.HasPrefix(c.Request.URL.Path, "/api/iot/") ||
 			(c.Request.Method == http.MethodPost && c.Request.URL.Path == "/api/leads") {
 			c.Next()
 			return

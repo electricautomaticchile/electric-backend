@@ -6,7 +6,6 @@ import (
 	"electric-backend/infrastructure/iot"
 	"electric-backend/infrastructure/leads"
 	"electric-backend/infrastructure/middleware"
-	"electric-backend/infrastructure/websocket"
 	"net/http"
 	"runtime"
 	"time"
@@ -14,7 +13,7 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-func registerHealthRoutes(router *gin.Engine, wsHub *websocket.Hub, arduinoBridge *arduino.SerialBridge) {
+func registerHealthRoutes(router *gin.Engine, arduinoBridge *arduino.SerialBridge) {
 	router.GET("/health", func(c *gin.Context) {
 		var memStats runtime.MemStats
 		runtime.ReadMemStats(&memStats)
@@ -47,7 +46,6 @@ func registerHealthRoutes(router *gin.Engine, wsHub *websocket.Hub, arduinoBridg
 			"environment": config.AppConfig.Environment,
 			"database":    gin.H{"connected": config.MongoDB != nil},
 			"redis":       gin.H{"connected": config.RedisClient != nil},
-			"websocket":   gin.H{"clients": wsHub.GetConnectedClients()},
 			"arduino":     gin.H{"connected": arduinoBridge.IsConnected(), "devices": len(arduinoBridge.GetDevices())},
 		}
 		if ingestor := iot.DefaultReadingIngestor(); ingestor != nil {

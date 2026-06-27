@@ -9,12 +9,12 @@ import (
 	"electric-backend/infrastructure/arduino"
 	"electric-backend/infrastructure/data"
 	"electric-backend/infrastructure/email"
+	"electric-backend/infrastructure/eventbus"
 	"electric-backend/infrastructure/iot"
 	"electric-backend/infrastructure/leads"
 	"electric-backend/infrastructure/scheduler"
 	"electric-backend/infrastructure/sms"
 	"electric-backend/infrastructure/validation"
-	"electric-backend/infrastructure/websocket"
 	"log"
 	"net/http"
 	"os"
@@ -70,10 +70,11 @@ func main() {
 	emailSvc := email.NewNoopService(config.AppConfig.EmailFrom)
 	smsSvc := sms.NewNoopService()
 
-	// 6. WebSocket + Arduino — delay aumentado para que el scheduler corra primero
-	wsHub := websocket.InitializeHub()
-	go wsHub.Run()
-	arduinoBridge := arduino.NewSerialBridge(wsHub)
+	// 6. Event bus (Redis Pub/Sub) + Arduino
+	// El WebSocket Hub vive en el servicio independiente websocket-electric.
+	// La API solo publica eventos en Redis; el Hub los entrega a los clientes.
+	wsPublisher := eventbus.NewPublisher(config.RedisClient)
+	arduinoBridge := arduino.NewSerialBridge(wsPublisher)
 	if os.Getenv("ARDUINO_ENABLED") == "true" {
 		go func() {
 			// Esperar 10s para que el scheduler inicial termine antes de sincronizar el Arduino
@@ -86,14 +87,14 @@ func main() {
 	}
 
 	// 7. Services (build container)
-	ext := &services.ExternalDeps{WSHub: wsHub, EmailSvc: emailSvc, SMSSvc: smsSvc}
+	ext := &services.ExternalDeps{WSPublisher: wsPublisher, EmailSvc: emailSvc, SMSSvc: smsSvc}
 	svc := services.Build(repos, ext)
 
 	// 8. Facades (build container)
 	fc := facades.Build(svc)
 
 	// 9. Servicio eléctrico + Scheduler
-	svc.BoletaService.SetDependencies(repos.DispositivoRepo, repos.NotificacionRepo, repos.TarifaRepo, smsSvc, services.NewWebSocketNotifierService(wsHub))
+	svc.BoletaService.SetDependencies(repos.DispositivoRepo, repos.NotificacionRepo, repos.TarifaRepo, smsSvc, services.NewWebSocketNotifierService(wsPublisher))
 	servicioElectrico := services.NewServicioElectricoService(repos.DispositivoRepo, arduinoBridge)
 	svc.BoletaService.SetServicioElectrico(servicioElectrico)
 
@@ -120,7 +121,7 @@ func main() {
 	go svc.MonitoreoService.IniciarMonitoreoAutomatico(context.Background())
 
 	// 11. Router (server.go maneja rutas y middleware)
-	router := server.SetupRouter(fc, svc, repos, wsHub, arduinoBridge)
+	router := server.SetupRouter(fc, svc, repos, arduinoBridge)
 
 	// 12. Start server
 	port := config.AppConfig.Port

@@ -34,11 +34,6 @@ func CORSMiddleware() gin.HandlerFunc {
 
 	// Responder al preflight OPTIONS antes de cualquier otro middleware
 	return func(c *gin.Context) {
-		// Las rutas WebSocket no necesitan CORS — el upgrader maneja el origen
-		if strings.HasPrefix(c.Request.URL.Path, "/api/ws/") {
-			c.Next()
-			return
-		}
 		if c.Request.Method == http.MethodOptions {
 			corsFn(c)
 			c.AbortWithStatus(http.StatusNoContent)

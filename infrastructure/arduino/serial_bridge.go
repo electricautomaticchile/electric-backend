@@ -5,8 +5,8 @@ import (
 	"context"
 	"electric-backend/config"
 	"electric-backend/infrastructure/email"
+	"electric-backend/infrastructure/eventbus"
 	"electric-backend/infrastructure/sms"
-	"electric-backend/infrastructure/websocket"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -26,7 +26,7 @@ type SerialBridge struct {
 	config          SerialConfig
 	devices         map[string]*DeviceInfo
 	devicesMu       sync.RWMutex
-	hub             *websocket.Hub
+	publisher       *eventbus.Publisher
 	ctx             context.Context
 	cancel          context.CancelFunc
 	restoredDevices map[string]bool
@@ -37,7 +37,7 @@ type SerialBridge struct {
 	costThresholdsMu sync.Mutex
 }
 
-func NewSerialBridge(hub *websocket.Hub) *SerialBridge {
+func NewSerialBridge(publisher *eventbus.Publisher) *SerialBridge {
 	ctx, cancel := context.WithCancel(context.Background())
 
 	aggregator := GetAggregator()
@@ -60,7 +60,7 @@ func NewSerialBridge(hub *websocket.Hub) *SerialBridge {
 		devices:         make(map[string]*DeviceInfo),
 		restoredDevices: make(map[string]bool),
 		costThresholds:  make(map[string]float64),
-		hub:             hub,
+		publisher:       publisher,
 		ctx:             ctx,
 		cancel:          cancel,
 		aggregator:      aggregator,
@@ -578,8 +578,8 @@ func (sb *SerialBridge) sendToWebSocket(data *ArduinoData) {
 		"uptime":         data.Uptime,
 	}
 
-	msg := websocket.Message{
-		Type:      websocket.MessageTypeDeviceUpdate,
+	msg := eventbus.Message{
+		Type:      eventbus.MessageTypeDeviceUpdate,
 		Data:      wsData,
 		Timestamp: time.Now(),
 		ClienteID: device.ClienteID,
@@ -587,11 +587,11 @@ func (sb *SerialBridge) sendToWebSocket(data *ArduinoData) {
 
 	sent := false
 	if device.ClienteID != "" {
-		sb.hub.BroadcastToCliente(device.ClienteID, msg)
+		sb.publisher.PublishToCliente(device.ClienteID, msg)
 		sent = true
 	}
 	if device.EmpresaID != "" {
-		sb.hub.BroadcastToEmpresa(device.EmpresaID, msg)
+		sb.publisher.PublishToEmpresa(device.EmpresaID, msg)
 		sent = true
 	}
 	if !sent {

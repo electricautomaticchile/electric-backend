@@ -4,7 +4,6 @@ import (
 	"electric-backend/types"
 	"log"
 	"net/http"
-	"strings"
 
 	"github.com/gin-gonic/gin"
 )
@@ -13,11 +12,6 @@ import (
 func ErrorHandler() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		c.Next()
-
-		// No intentar escribir en conexiones WebSocket hijacked
-		if strings.HasPrefix(c.Request.URL.Path, "/api/ws/") {
-			return
-		}
 
 		if len(c.Errors) > 0 {
 			err := c.Errors.Last().Err

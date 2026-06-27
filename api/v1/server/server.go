@@ -6,7 +6,6 @@ import (
 	"electric-backend/infrastructure/arduino"
 	"electric-backend/infrastructure/data"
 	"electric-backend/infrastructure/middleware"
-	"electric-backend/infrastructure/websocket"
 	"electric-backend/types"
 	"net/http"
 
@@ -18,14 +17,12 @@ func SetupRouter(
 	facadeContainer *facades.FacadeContainer,
 	svc *services.ServiceContainer,
 	repos *data.DataContainer,
-	wsHub *websocket.Hub,
 	arduinoBridge *arduino.SerialBridge,
 ) *gin.Engine {
 	router := gin.New()
 	router.Use(gin.LoggerWithConfig(gin.LoggerConfig{
 		SkipPaths: []string{
 			"/health",
-			"/api/ws/connect",
 			"/api/leads",
 			"/api/iot/lectura",
 			"/api/iot/comando-ejecutado",
@@ -42,10 +39,10 @@ func SetupRouter(
 	router.Use(middleware.ErrorHandler())
 	router.Use(middleware.EndpointRateLimitMiddleware(rateLimits()))
 
-	registerHealthRoutes(router, wsHub, arduinoBridge)
+	registerHealthRoutes(router, arduinoBridge)
 
 	api := router.Group("/api")
-	registerRoutes(api, facadeContainer, svc, repos, wsHub, arduinoBridge)
+	registerRoutes(api, facadeContainer, svc, repos, arduinoBridge)
 
 	router.NoRoute(func(c *gin.Context) {
 		c.JSON(http.StatusNotFound, types.ApiResponse{Success: false, Error: "Ruta no encontrada"})

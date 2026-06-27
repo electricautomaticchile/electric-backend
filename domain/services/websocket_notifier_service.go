@@ -2,23 +2,31 @@ package services
 
 import (
 	"electric-backend/infrastructure/entities"
-	"electric-backend/infrastructure/websocket"
+	"electric-backend/infrastructure/eventbus"
 	"time"
 )
 
+// WebSocketNotifierService publica eventos en tiempo real en Redis Pub/Sub.
+// El broadcast a los clientes WebSocket lo realiza el servicio independiente
+// websocket-electric, que se suscribe a estos eventos. La API ya no mantiene
+// conexiones WebSocket.
 type WebSocketNotifierService struct {
-	hub *websocket.Hub
+	publisher *eventbus.Publisher
 }
 
-func NewWebSocketNotifierService(hub *websocket.Hub) *WebSocketNotifierService {
+func NewWebSocketNotifierService(publisher *eventbus.Publisher) *WebSocketNotifierService {
 	return &WebSocketNotifierService{
-		hub: hub,
+		publisher: publisher,
 	}
 }
 
 func (s *WebSocketNotifierService) NotificarNuevaNotificacion(notificacion *entities.NotificacionEntity) {
-	msg := websocket.Message{
-		Type:      websocket.MessageTypeNotification,
+	if s.publisher == nil {
+		return
+	}
+
+	msg := eventbus.Message{
+		Type:      eventbus.MessageTypeNotification,
 		Timestamp: time.Now(),
 		ClienteID: notificacion.DestinatarioID.Hex(),
 		Data: map[string]interface{}{
@@ -30,11 +38,11 @@ func (s *WebSocketNotifierService) NotificarNuevaNotificacion(notificacion *enti
 		},
 	}
 
-	s.hub.BroadcastToCliente(notificacion.DestinatarioID.Hex(), msg)
-	
+	s.publisher.PublishToCliente(notificacion.DestinatarioID.Hex(), msg)
+
 	if notificacion.Tipo == "alerta" {
-		alertMsg := websocket.Message{
-			Type:      websocket.MessageTypeAlert,
+		alertMsg := eventbus.Message{
+			Type:      eventbus.MessageTypeAlert,
 			Timestamp: time.Now(),
 			EmpresaID: notificacion.DestinatarioID.Hex(),
 			Data: map[string]interface{}{
@@ -46,13 +54,17 @@ func (s *WebSocketNotifierService) NotificarNuevaNotificacion(notificacion *enti
 				"resuelta":    notificacion.Resuelta,
 			},
 		}
-		s.hub.BroadcastToEmpresa(notificacion.DestinatarioID.Hex(), alertMsg)
+		s.publisher.PublishToEmpresa(notificacion.DestinatarioID.Hex(), alertMsg)
 	}
 }
 
 func (s *WebSocketNotifierService) NotificarActualizacionDispositivo(dispositivo *entities.DispositivoEntity) {
-	msg := websocket.Message{
-		Type:      websocket.MessageTypeDeviceUpdate,
+	if s.publisher == nil {
+		return
+	}
+
+	msg := eventbus.Message{
+		Type:      eventbus.MessageTypeDeviceUpdate,
 		Timestamp: time.Now(),
 		EmpresaID: dispositivo.EmpresaID.Hex(),
 		Data: map[string]interface{}{
@@ -75,16 +87,20 @@ func (s *WebSocketNotifierService) NotificarActualizacionDispositivo(dispositivo
 		}
 	}
 
-	s.hub.BroadcastToEmpresa(dispositivo.EmpresaID.Hex(), msg)
-	
+	s.publisher.PublishToEmpresa(dispositivo.EmpresaID.Hex(), msg)
+
 	if !dispositivo.ClienteID.IsZero() {
-		s.hub.BroadcastToCliente(dispositivo.ClienteID.Hex(), msg)
+		s.publisher.PublishToCliente(dispositivo.ClienteID.Hex(), msg)
 	}
 }
 
 func (s *WebSocketNotifierService) NotificarConsumo(empresaID string, clienteID string, data map[string]interface{}) {
-	msg := websocket.Message{
-		Type:      websocket.MessageTypeConsumption,
+	if s.publisher == nil {
+		return
+	}
+
+	msg := eventbus.Message{
+		Type:      eventbus.MessageTypeConsumption,
 		Timestamp: time.Now(),
 		EmpresaID: empresaID,
 		ClienteID: clienteID,
@@ -92,10 +108,10 @@ func (s *WebSocketNotifierService) NotificarConsumo(empresaID string, clienteID 
 	}
 
 	if empresaID != "" {
-		s.hub.BroadcastToEmpresa(empresaID, msg)
+		s.publisher.PublishToEmpresa(empresaID, msg)
 	}
-	
+
 	if clienteID != "" {
-		s.hub.BroadcastToCliente(clienteID, msg)
+		s.publisher.PublishToCliente(clienteID, msg)
 	}
 }

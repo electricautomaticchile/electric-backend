@@ -42,9 +42,6 @@ type Config struct {
 	InfobipBaseURL string
 	SMSFromNumber  string
 
-	// WebSocket
-	WebSocketAPIURL string
-
 	// IoT
 	IoTAPIKey              string
 	IoTTokenCacheTTL       time.Duration
@@ -114,8 +111,6 @@ func LoadConfig() *Config {
 		InfobipAPIKey:  getEnv("INFOBIP_API_KEY", ""),
 		InfobipBaseURL: getEnv("INFOBIP_BASE_URL", "https://api.infobip.com"),
 		SMSFromNumber:  getEnv("SMS_FROM_NUMBER", "ElectricCL"),
-
-		WebSocketAPIURL: getEnv("WEBSOCKET_API_URL", "http://localhost:5000"),
 
 		IoTAPIKey:              getEnv("IOT_API_KEY", ""),
 		IoTTokenCacheTTL:       getEnvDurationMS("IOT_TOKEN_CACHE_TTL_MS", 5*time.Minute),

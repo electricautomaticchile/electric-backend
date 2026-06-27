@@ -131,7 +131,6 @@ func shouldSkipAudit(method string, path string) bool {
 
 	skipPaths := []string{
 		"/health",
-		"/api/ws/",
 		"/api/arduino/status",
 	}
 

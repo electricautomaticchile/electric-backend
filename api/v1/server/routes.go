@@ -6,7 +6,6 @@ import (
 	"electric-backend/domain/services"
 	"electric-backend/infrastructure/arduino"
 	"electric-backend/infrastructure/data"
-	"electric-backend/infrastructure/websocket"
 
 	"github.com/gin-gonic/gin"
 )
@@ -16,7 +15,6 @@ func registerRoutes(
 	fc *facades.FacadeContainer,
 	svc *services.ServiceContainer,
 	repos *data.DataContainer,
-	wsHub *websocket.Hub,
 	arduinoBridge *arduino.SerialBridge,
 ) {
 	// --- Controllers ---
@@ -30,7 +28,6 @@ func registerRoutes(
 	estadisticaCtrl := controllers.NewEstadisticaController(svc.DashboardService)
 	cotizacionCtrl := controllers.NewCotizacionController(fc.CotizacionFacade)
 	leadCtrl := controllers.NewLeadController()
-	wsCtrl := controllers.NewWebSocketController(wsHub)
 	arduinoCtrl := controllers.NewArduinoController(arduinoBridge)
 	dashboardClienteCtrl := controllers.NewDashboardClienteController(fc.ClienteFacade, fc.DispositivoFacade, svc.BoletaService, svc.DashboardService, arduinoBridge)
 	reportesCtrl := controllers.NewReportesController(svc.ReportesService)
@@ -65,7 +62,6 @@ func registerRoutes(
 	tarifaCtrl.SetupRoutes(api)
 	consumoCtrl.SetupRoutes(api)
 	usuarioEmpresaCtrl.SetupRoutes(api)
-	wsCtrl.SetupRoutes(api)
 	arduinoCtrl.SetupRoutes(api)
 	iotStatusCtrl.SetupRoutes(api)
 
