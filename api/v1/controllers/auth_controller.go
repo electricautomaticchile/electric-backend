@@ -60,17 +60,29 @@ func secureCookies() bool {
 	return os.Getenv("NODE_ENV") == "production"
 }
 
+// cookieSameSite determina la política SameSite de las cookies de sesión.
+// En producción el frontend y la API viven en dominios distintos
+// (electricautomaticchile.com vs api-electricautomaticchile.com), por lo que
+// las cookies son cross-site y requieren SameSite=None + Secure. En desarrollo
+// local (HTTP) se usa Lax, ya que None exige Secure y sería rechazada.
+func cookieSameSite() http.SameSite {
+	if secureCookies() {
+		return http.SameSiteNoneMode
+	}
+	return http.SameSiteLaxMode
+}
+
 func setSessionCookies(gctx *gin.Context, token string, refreshToken string) {
 	const authMaxAge = 24 * 60 * 60
 	const refreshMaxAge = 7 * 24 * 60 * 60
 
-	gctx.SetSameSite(http.SameSiteLaxMode)
+	gctx.SetSameSite(cookieSameSite())
 	gctx.SetCookie("auth_token", token, authMaxAge, "/", authCookieDomain(), secureCookies(), true)
 	gctx.SetCookie("refresh_token", refreshToken, refreshMaxAge, "/", authCookieDomain(), secureCookies(), true)
 }
 
 func clearSessionCookies(gctx *gin.Context) {
-	gctx.SetSameSite(http.SameSiteLaxMode)
+	gctx.SetSameSite(cookieSameSite())
 	gctx.SetCookie("auth_token", "", -1, "/", authCookieDomain(), secureCookies(), true)
 	gctx.SetCookie("refresh_token", "", -1, "/", authCookieDomain(), secureCookies(), true)
 	gctx.SetCookie("requiereCambioPassword", "", -1, "/", authCookieDomain(), secureCookies(), false)

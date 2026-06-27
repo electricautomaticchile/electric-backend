@@ -25,8 +25,11 @@ services:
         generateValue: true
       - key: CORS_ORIGINS
         value: https://electricautomaticchile.com,https://www.electricautomaticchile.com
+      # Dominios cruzados (frontend en electricautomaticchile.com, API en
+      # api-electricautomaticchile.com): la cookie debe ser host-only, por lo
+      # que AUTH_COOKIE_DOMAIN se deja vacío. La API setea SameSite=None+Secure.
       - key: AUTH_COOKIE_DOMAIN
-        value: .electricautomaticchile.com
+        value: ""
       - key: REDIS_HOST
         fromService:
           type: keyvalue
