@@ -72,20 +72,40 @@ func cookieSameSite() http.SameSite {
 	return http.SameSiteLaxMode
 }
 
+// writeSessionCookie escribe una cookie de sesión usando http.SetCookie para
+// poder establecer el atributo Partitioned (CHIPS). Los navegadores están
+// migrando a exigir Partitioned en cookies de terceros (cross-site); al estar
+// frontend y API en dominios distintos, marcamos las cookies como
+// particionadas en producción para cumplir con esa política.
+func writeSessionCookie(gctx *gin.Context, name, value string, maxAge int, httpOnly bool) {
+	secure := secureCookies()
+	cookie := &http.Cookie{
+		Name:     name,
+		Value:    value,
+		Path:     "/",
+		Domain:   authCookieDomain(),
+		MaxAge:   maxAge,
+		Secure:   secure,
+		HttpOnly: httpOnly,
+		SameSite: cookieSameSite(),
+		// Partitioned solo aplica con Secure + SameSite=None (contexto cross-site).
+		Partitioned: secure,
+	}
+	http.SetCookie(gctx.Writer, cookie)
+}
+
 func setSessionCookies(gctx *gin.Context, token string, refreshToken string) {
 	const authMaxAge = 24 * 60 * 60
 	const refreshMaxAge = 7 * 24 * 60 * 60
 
-	gctx.SetSameSite(cookieSameSite())
-	gctx.SetCookie("auth_token", token, authMaxAge, "/", authCookieDomain(), secureCookies(), true)
-	gctx.SetCookie("refresh_token", refreshToken, refreshMaxAge, "/", authCookieDomain(), secureCookies(), true)
+	writeSessionCookie(gctx, "auth_token", token, authMaxAge, true)
+	writeSessionCookie(gctx, "refresh_token", refreshToken, refreshMaxAge, true)
 }
 
 func clearSessionCookies(gctx *gin.Context) {
-	gctx.SetSameSite(cookieSameSite())
-	gctx.SetCookie("auth_token", "", -1, "/", authCookieDomain(), secureCookies(), true)
-	gctx.SetCookie("refresh_token", "", -1, "/", authCookieDomain(), secureCookies(), true)
-	gctx.SetCookie("requiereCambioPassword", "", -1, "/", authCookieDomain(), secureCookies(), false)
+	writeSessionCookie(gctx, "auth_token", "", -1, true)
+	writeSessionCookie(gctx, "refresh_token", "", -1, true)
+	writeSessionCookie(gctx, "requiereCambioPassword", "", -1, false)
 }
 
 func shouldExposeTokens(gctx *gin.Context) bool {
@@ -247,7 +267,7 @@ func (ctrl *AuthController) CambiarPassword(gctx *gin.Context) {
 		return
 	}
 
-	gctx.SetCookie("requiereCambioPassword", "", -1, "/", authCookieDomain(), secureCookies(), false)
+	writeSessionCookie(gctx, "requiereCambioPassword", "", -1, false)
 
 	gctx.JSON(http.StatusOK, types.ApiResponse{
 		Success: true,
