@@ -8,7 +8,6 @@ type EmailService interface {
 	EnviarNotificacionTicket(destinatario, nombreUsuario, numeroTicket, asunto, mensaje string) error
 	EnviarNotificacionBoleta(destinatario, nombreCliente, numeroBoleta, monto, fechaVencimiento string) error
 	EnviarRecuperacionPassword(destinatario, nombreUsuario, token string) error
-	EnviarBienvenida(destinatario, nombreUsuario, tipoUsuario string) error
 	EnviarCredenciales(destinatario, nombreCliente, numeroCliente, passwordTemporal string) error
 	// Boletas y suministro
 	EnviarBoletaVenciendo(destinatario, nombreCliente, periodo, monto, fechaVencimiento string) error

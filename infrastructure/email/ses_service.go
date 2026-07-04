@@ -98,11 +98,6 @@ func (s *SESService) EnviarRecuperacionPassword(destinatario, nombreUsuario, tok
 		fmt.Sprintf("Hola %s, token de recuperación: %s", nombreUsuario, token))
 }
 
-func (s *SESService) EnviarBienvenida(destinatario, nombreUsuario, tipoUsuario string) error {
-	return s.EnviarEmail([]string{destinatario}, "Bienvenido a Electricautomaticchile", "",
-		fmt.Sprintf("Hola %s, tu cuenta %s fue creada.", nombreUsuario, tipoUsuario))
-}
-
 func (s *SESService) EnviarCredenciales(destinatario, nombreCliente, numeroCliente, passwordTemporal string) error {
 	return s.EnviarEmail([]string{destinatario}, "Credenciales de acceso", "",
 		fmt.Sprintf("Hola %s, número cliente: %s, password temporal: %s", nombreCliente, numeroCliente, passwordTemporal))

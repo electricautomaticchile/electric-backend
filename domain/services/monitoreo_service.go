@@ -15,21 +15,13 @@ type MonitoreoService struct {
 	dispositivoRepo  ports.PortDispositivo
 	clienteRepo      ports.PortCliente
 	empresaRepo      ports.PortEmpresa
-	emailService     EmailSender
-	smsService       SMSSender
+	// Las alertas de dispositivo/monitoreo se entregan solo en la app y la
+	// plataforma web: se persisten in-app y se publican en tiempo real por
+	// WebSocket. NO se envían por email ni SMS (decisión de producto).
+	wsNotifier *WebSocketNotifierService
 	// Throttle: última alerta por dispositivo para evitar spam
 	ultimaAlerta     map[string]time.Time
 	throttleDuracion time.Duration
-}
-
-// EmailSender interfaz mínima para envío de alertas por email
-type EmailSender interface {
-	EnviarNotificacionAlerta(destinatario, nombreCliente, tipoAlerta, mensaje string) error
-}
-
-// SMSSender interfaz mínima para envío de alertas por SMS
-type SMSSender interface {
-	EnviarSMS(to, mensaje string) error
 }
 
 func NewMonitoreoService(
@@ -37,16 +29,14 @@ func NewMonitoreoService(
 	dispositivoRepo ports.PortDispositivo,
 	clienteRepo ports.PortCliente,
 	empresaRepo ports.PortEmpresa,
-	emailService EmailSender,
-	smsService SMSSender,
+	wsNotifier *WebSocketNotifierService,
 ) *MonitoreoService {
 	return &MonitoreoService{
 		notificacionRepo: notificacionRepo,
 		dispositivoRepo:  dispositivoRepo,
 		clienteRepo:      clienteRepo,
 		empresaRepo:      empresaRepo,
-		emailService:     emailService,
-		smsService:       smsService,
+		wsNotifier:       wsNotifier,
 		ultimaAlerta:     make(map[string]time.Time),
 		throttleDuracion: 24 * time.Hour, // Máximo 1 alerta por dispositivo por día
 	}
@@ -91,7 +81,7 @@ func (s *MonitoreoService) VerificarConsumoAnormal(ctx context.Context, empresaI
 			}
 
 			s.notificacionRepo.Create(ctx, notificacion)
-			s.enviarAlertaExterna(ctx, dispositivo, titulo, mensaje, "advertencia")
+			s.publicarAlertaTiempoReal(notificacion)
 		}
 
 		if consumoActual < 0.01 && dispositivo.Estado == "activo" {
@@ -119,7 +109,7 @@ func (s *MonitoreoService) VerificarConsumoAnormal(ctx context.Context, empresaI
 			}
 
 			s.notificacionRepo.Create(ctx, notificacion)
-			s.enviarAlertaExterna(ctx, dispositivo, titulo, mensaje, "advertencia")
+			s.publicarAlertaTiempoReal(notificacion)
 		}
 	}
 
@@ -156,7 +146,7 @@ func (s *MonitoreoService) VerificarPatronesAnormales(ctx context.Context, empre
 				dispositivo.Nombre, dispositivo.UltimaLectura.Voltage)
 
 			empresaOID, _ := primitive.ObjectIDFromHex(empresaID)
-			s.notificacionRepo.Create(ctx, &entities.NotificacionEntity{
+			notif := &entities.NotificacionEntity{
 				DestinatarioID: empresaOID,
 				DispositivoID:  dispositivo.ID,
 				Tipo:           "alerta",
@@ -165,8 +155,9 @@ func (s *MonitoreoService) VerificarPatronesAnormales(ctx context.Context, empre
 				Mensaje:        mensaje,
 				Importante:     true,
 				FechaCreacion:  time.Now(),
-			})
-			s.enviarAlertaExterna(ctx, dispositivo, titulo, mensaje, "error")
+			}
+			s.notificacionRepo.Create(ctx, notif)
+			s.publicarAlertaTiempoReal(notif)
 			alertaEnviada = true
 		}
 
@@ -176,7 +167,7 @@ func (s *MonitoreoService) VerificarPatronesAnormales(ctx context.Context, empre
 				dispositivo.Nombre, dispositivo.UltimaLectura.Current)
 
 			empresaOID, _ := primitive.ObjectIDFromHex(empresaID)
-			s.notificacionRepo.Create(ctx, &entities.NotificacionEntity{
+			notif := &entities.NotificacionEntity{
 				DestinatarioID: empresaOID,
 				DispositivoID:  dispositivo.ID,
 				Tipo:           "alerta",
@@ -185,8 +176,9 @@ func (s *MonitoreoService) VerificarPatronesAnormales(ctx context.Context, empre
 				Mensaje:        mensaje,
 				Importante:     true,
 				FechaCreacion:  time.Now(),
-			})
-			s.enviarAlertaExterna(ctx, dispositivo, titulo, mensaje, "error")
+			}
+			s.notificacionRepo.Create(ctx, notif)
+			s.publicarAlertaTiempoReal(notif)
 			alertaEnviada = true
 		}
 
@@ -342,35 +334,14 @@ func (s *MonitoreoService) analizarDispositivoAntifraude(dispositivo *entities.D
 	return anomalias
 }
 
-// Mejora #12: Enviar alertas externas (email/SMS) cuando se detectan anomalías
-func (s *MonitoreoService) enviarAlertaExterna(ctx context.Context, dispositivo *entities.DispositivoEntity, titulo, mensaje, severidad string) {
-	if dispositivo.ClienteID.IsZero() {
+// publicarAlertaTiempoReal empuja la notificación de dispositivo por WebSocket
+// para que aparezca al instante en la app y en la plataforma web. La
+// notificación ya quedó persistida in-app por el llamador.
+func (s *MonitoreoService) publicarAlertaTiempoReal(notificacion *entities.NotificacionEntity) {
+	if s.wsNotifier == nil || notificacion == nil {
 		return
 	}
-
-	cliente, err := s.clienteRepo.FindByID(ctx, dispositivo.ClienteID.Hex())
-	if err != nil || cliente == nil {
-		return
-	}
-
-	// Enviar email si hay correo configurado
-	if s.emailService != nil && cliente.Correo != "" {
-		go func() {
-			if err := s.emailService.EnviarNotificacionAlerta(cliente.Correo, cliente.Nombre, titulo, mensaje); err != nil {
-				fmt.Printf("Error enviando alerta email a %s: %v\n", cliente.Correo, err)
-			}
-		}()
-	}
-
-	// Enviar SMS solo para alertas críticas/error
-	if s.smsService != nil && cliente.Telefono != "" && (severidad == "error" || severidad == "critical") {
-		go func() {
-			smsMsg := fmt.Sprintf("⚠️ %s\n%s\n- Electricautomaticchile", titulo, mensaje)
-			if err := s.smsService.EnviarSMS(cliente.Telefono, smsMsg); err != nil {
-				fmt.Printf("Error enviando alerta SMS a %s: %v\n", cliente.Telefono, err)
-			}
-		}()
-	}
+	s.wsNotifier.NotificarNuevaNotificacion(notificacion)
 }
 
 func (s *MonitoreoService) ObtenerEstadisticasAntifraude(ctx context.Context, empresaID string) (*EstadisticasAntifraude, error) {

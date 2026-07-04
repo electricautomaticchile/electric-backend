@@ -58,15 +58,6 @@ func (s *NoopService) EnviarRecuperacionPassword(destinatario, nombreUsuario, to
 	)
 }
 
-func (s *NoopService) EnviarBienvenida(destinatario, nombreUsuario, tipoUsuario string) error {
-	return s.EnviarEmail(
-		[]string{destinatario},
-		"Bienvenido a Electricautomaticchile",
-		"",
-		fmt.Sprintf("Hola %s, tu cuenta %s fue creada.", nombreUsuario, tipoUsuario),
-	)
-}
-
 func (s *NoopService) EnviarCredenciales(destinatario, nombreCliente, numeroCliente, passwordTemporal string) error {
 	return s.EnviarEmail(
 		[]string{destinatario},
