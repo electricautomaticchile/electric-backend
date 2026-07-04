@@ -196,20 +196,15 @@ func (s *TicketService) ActualizarEstado(ctx context.Context, id string, r *reci
 		estadoTexto = r.Estado
 	}
 
-	mensajeNotif := "Tu ticket #" + ticket.NumeroTicket + " ha cambiado a estado: " + estadoTexto
 	notificacion := &entities.NotificacionEntity{
 		DestinatarioID: ticket.ClienteID,
 		Tipo:           "ticket",
 		Titulo:         "Estado de Ticket Actualizado",
-		Mensaje:        mensajeNotif,
+		Mensaje:        "Tu ticket #" + ticket.NumeroTicket + " ha cambiado a estado: " + estadoTexto,
 		Leida:          false,
 		FechaCreacion:  time.Now(),
 	}
 	s.notificacionRepo.Create(ctx, notificacion)
-
-	// Aviso por email al destinatario del ticket.
-	s.enviarEmailRespuestaTicket(ctx, ticket.ClienteID.Hex(), ticket.NumeroTicket,
-		"Estado actualizado: "+estadoTexto, mensajeNotif)
 
 	return nil
 }

@@ -83,41 +83,6 @@ func (s *SESService) EnviarNotificacionAlerta(destinatario, nombreCliente, tipoA
 		fmt.Sprintf("Hola %s, se generó una alerta: %s", nombreCliente, mensaje))
 }
 
-func (s *SESService) EnviarNotificacion(destinatario, nombreCliente, tipo, titulo, mensaje string) error {
-	asunto := titulo
-	if asunto == "" {
-		asunto = "Nueva notificación"
-	}
-	texto := fmt.Sprintf("Hola %s,\n\n%s\n\n%s\n\n— ElectricAutomaticChile",
-		nombreCliente, titulo, mensaje)
-	html := renderNotificacionHTML(nombreCliente, tipo, titulo, mensaje)
-	return s.EnviarEmail([]string{destinatario}, asunto, html, texto)
-}
-
-// renderNotificacionHTML arma un correo HTML sencillo y con la marca para
-// cualquier notificación del sistema.
-func renderNotificacionHTML(nombreCliente, tipo, titulo, mensaje string) string {
-	etiqueta := tipo
-	if etiqueta == "" {
-		etiqueta = "notificación"
-	}
-	return fmt.Sprintf(`<!DOCTYPE html><html lang="es"><body style="margin:0;padding:0;background:#f4f4f5;font-family:Arial,Helvetica,sans-serif;">`+
-		`<table role="presentation" width="100%%" cellpadding="0" cellspacing="0" style="background:#f4f4f5;padding:24px 0;">`+
-		`<tr><td align="center">`+
-		`<table role="presentation" width="560" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:12px;overflow:hidden;border:1px solid #e5e7eb;">`+
-		`<tr><td style="background:#0a0a0a;padding:20px 28px;color:#ffffff;font-size:18px;font-weight:bold;">ElectricAutomaticChile</td></tr>`+
-		`<tr><td style="padding:28px;">`+
-		`<span style="display:inline-block;background:#eff6ff;color:#1d4ed8;font-size:11px;text-transform:uppercase;letter-spacing:.5px;padding:4px 10px;border-radius:999px;margin-bottom:14px;">%s</span>`+
-		`<h1 style="margin:0 0 12px;font-size:20px;color:#111827;">%s</h1>`+
-		`<p style="margin:0 0 8px;color:#374151;font-size:14px;">Hola %s,</p>`+
-		`<p style="margin:0;color:#374151;font-size:15px;line-height:1.5;">%s</p>`+
-		`</td></tr>`+
-		`<tr><td style="padding:18px 28px;background:#fafafa;border-top:1px solid #e5e7eb;color:#9ca3af;font-size:12px;">`+
-		`Este es un mensaje automático de ElectricAutomaticChile. No respondas a este correo.</td></tr>`+
-		`</table></td></tr></table></body></html>`,
-		etiqueta, titulo, nombreCliente, mensaje)
-}
-
 func (s *SESService) EnviarNotificacionTicket(destinatario, nombreUsuario, numeroTicket, asunto, mensaje string) error {
 	return s.EnviarEmail([]string{destinatario}, fmt.Sprintf("Ticket #%s: %s", numeroTicket, asunto), mensaje,
 		fmt.Sprintf("Hola %s, actualización del ticket #%s: %s", nombreUsuario, numeroTicket, mensaje))

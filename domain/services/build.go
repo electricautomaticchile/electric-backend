@@ -47,7 +47,7 @@ func Build(repos *data.DataContainer, ext *ExternalDeps) *ServiceContainer {
 	clienteService := NewClienteService(repos.ClienteRepo, ext.EmailSvc)
 	empresaService := NewEmpresaService(repos.EmpresaRepo)
 	dispositivoService := NewDispositivoService(repos.DispositivoRepo, repos.ClienteRepo, wsNotifier)
-	notificacionService := NewNotificacionService(repos.NotificacionRepo, wsNotifier, ext.EmailSvc, repos.ClienteRepo, repos.EmpresaRepo)
+	notificacionService := NewNotificacionService(repos.NotificacionRepo, wsNotifier)
 	boletaService := NewBoletaService(repos.BoletaRepo, repos.ClienteRepo, ext.EmailSvc)
 	ticketService := NewTicketService(repos.TicketRepo, repos.NotificacionRepo, ext.EmailSvc, repos.ClienteRepo, repos.EmpresaRepo)
 	cotizacionService := NewCotizacionService(repos.CotizacionRepo)

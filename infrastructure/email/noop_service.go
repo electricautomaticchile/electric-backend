@@ -31,15 +31,6 @@ func (s *NoopService) EnviarNotificacionAlerta(destinatario, nombreCliente, tipo
 	)
 }
 
-func (s *NoopService) EnviarNotificacion(destinatario, nombreCliente, tipo, titulo, mensaje string) error {
-	return s.EnviarEmail(
-		[]string{destinatario},
-		titulo,
-		"",
-		fmt.Sprintf("Hola %s, %s: %s", nombreCliente, titulo, mensaje),
-	)
-}
-
 func (s *NoopService) EnviarNotificacionTicket(destinatario, nombreUsuario, numeroTicket, asunto, mensaje string) error {
 	return s.EnviarEmail(
 		[]string{destinatario},

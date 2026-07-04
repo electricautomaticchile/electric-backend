@@ -5,10 +5,6 @@ type EmailService interface {
 	EnviarEmail(to []string, subject, htmlBody, textBody string) error
 	// Existentes
 	EnviarNotificacionAlerta(destinatario, nombreCliente, tipoAlerta, mensaje string) error
-	// EnviarNotificacion envía por correo cualquier notificación in-app
-	// (alerta, sistema, consumo, facturación, etc.). tipo se usa para el
-	// encabezado/etiqueta del correo.
-	EnviarNotificacion(destinatario, nombreCliente, tipo, titulo, mensaje string) error
 	EnviarNotificacionTicket(destinatario, nombreUsuario, numeroTicket, asunto, mensaje string) error
 	EnviarNotificacionBoleta(destinatario, nombreCliente, numeroBoleta, monto, fechaVencimiento string) error
 	EnviarRecuperacionPassword(destinatario, nombreUsuario, token string) error
