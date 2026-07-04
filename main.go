@@ -12,6 +12,8 @@ import (
 	"electric-backend/infrastructure/eventbus"
 	"electric-backend/infrastructure/iot"
 	"electric-backend/infrastructure/leads"
+	"electric-backend/infrastructure/logger"
+	"electric-backend/infrastructure/push"
 	"electric-backend/infrastructure/scheduler"
 	"electric-backend/infrastructure/sms"
 	"electric-backend/infrastructure/validation"
@@ -30,6 +32,8 @@ import (
 
 func main() {
 	// 1. Logging
+	// zerolog: JSON estructurado en producción, consola legible en desarrollo.
+	logger.Init()
 	if os.Getenv("NODE_ENV") != "production" {
 		log.SetOutput(&lumberjack.Logger{
 			Filename: "./logs/electric-backend.log", MaxSize: 50, MaxBackups: 7, MaxAge: 30, Compress: true,
@@ -67,8 +71,9 @@ func main() {
 	repos := data.Build()
 
 	// 5. Servicios externos
-	emailSvc := email.NewNoopService(config.AppConfig.EmailFrom)
-	smsSvc := sms.NewNoopService()
+	emailSvc := buildEmailService()
+	smsSvc := buildSMSService()
+	pushSvc := buildPushService(repos.FCMTokenRepo)
 
 	// 6. Event bus (Redis Pub/Sub) + Arduino
 	// El WebSocket Hub vive en el servicio independiente websocket-electric.
@@ -87,7 +92,7 @@ func main() {
 	}
 
 	// 7. Services (build container)
-	ext := &services.ExternalDeps{WSPublisher: wsPublisher, EmailSvc: emailSvc, SMSSvc: smsSvc}
+	ext := &services.ExternalDeps{WSPublisher: wsPublisher, EmailSvc: emailSvc, SMSSvc: smsSvc, PushSvc: pushSvc}
 	svc := services.Build(repos, ext)
 
 	// 8. Facades (build container)
@@ -155,6 +160,52 @@ func acquireStartupLock(ctx context.Context) bool {
 		return false
 	}
 	return ok
+}
+
+// buildEmailService elige el proveedor de email según EMAIL_PROVIDER.
+// "ses" usa AWS SES (requiere credenciales AWS y remitente verificado);
+// cualquier otro valor o fallo usa el adaptador no-op.
+func buildEmailService() email.EmailService {
+	if os.Getenv("EMAIL_PROVIDER") == "ses" {
+		svc, err := email.NewSESService(config.AppConfig.EmailFrom, os.Getenv("AWS_REGION"))
+		if err != nil {
+			log.Printf("⚠️ No se pudo inicializar AWS SES, usando no-op: %v", err)
+			return email.NewNoopService(config.AppConfig.EmailFrom)
+		}
+		return svc
+	}
+	return email.NewNoopService(config.AppConfig.EmailFrom)
+}
+
+// buildSMSService elige el proveedor de SMS según SMS_PROVIDER.
+// "sns" usa AWS SNS (requiere credenciales AWS); cualquier otro valor o fallo
+// usa el adaptador no-op.
+func buildSMSService() sms.SMSService {
+	if os.Getenv("SMS_PROVIDER") == "sns" {
+		svc, err := sms.NewSNSService(config.AppConfig.SMSFromNumber, os.Getenv("AWS_REGION"))
+		if err != nil {
+			log.Printf("⚠️ No se pudo inicializar AWS SNS, usando no-op: %v", err)
+			return sms.NewNoopService()
+		}
+		return svc
+	}
+	return sms.NewNoopService()
+}
+
+// buildPushService inicializa el servicio de notificaciones push con Firebase.
+// Usa las credenciales de FIREBASE_SERVICE_ACCOUNT (JSON) o
+// GOOGLE_APPLICATION_CREDENTIALS (ruta). Si no hay credenciales o falla la
+// inicialización, usa el adaptador no-op para no romper el arranque.
+func buildPushService(tokenRepo push.TokenEliminador) push.PushService {
+	if os.Getenv("FIREBASE_SERVICE_ACCOUNT") == "" && os.Getenv("GOOGLE_APPLICATION_CREDENTIALS") == "" {
+		return push.NewNoopService()
+	}
+	svc, err := push.NewFirebaseService(tokenRepo)
+	if err != nil {
+		log.Printf("⚠️ No se pudo inicializar Firebase Push, usando no-op: %v", err)
+		return push.NewNoopService()
+	}
+	return svc
 }
 
 func registerValidators() {

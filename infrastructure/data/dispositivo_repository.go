@@ -180,18 +180,23 @@ func (r *DispositivoRepository) Update(ctx context.Context, id string, dispositi
 	return err
 }
 
-func (r *DispositivoRepository) UpdateUltimaLectura(ctx context.Context, numeroDispositivo string, lectura *entities.LecturaDispositivo) (*entities.DispositivoEntity, error) {
+func (r *DispositivoRepository) UpdateUltimaLectura(ctx context.Context, numeroDispositivo string, lectura *entities.LecturaDispositivo, latitud, longitud *float64) (*entities.DispositivoEntity, error) {
 	now := time.Now()
+	set := bson.M{
+		"ultimaLectura":      lectura,
+		"fechaActualizacion": now,
+	}
+	// Persistir última ubicación conocida solo si viene GPS válido en la lectura.
+	if latitud != nil && longitud != nil {
+		set["latitud"] = *latitud
+		set["longitud"] = *longitud
+	}
+
 	var updated entities.DispositivoEntity
 	err := r.collection.FindOneAndUpdate(
 		ctx,
 		bson.M{"numeroDispositivo": numeroDispositivo},
-		bson.M{
-			"$set": bson.M{
-				"ultimaLectura":      lectura,
-				"fechaActualizacion": now,
-			},
-		},
+		bson.M{"$set": set},
 		options.FindOneAndUpdate().SetReturnDocument(options.After),
 	).Decode(&updated)
 	if err != nil {

@@ -336,14 +336,16 @@ func (ctrl *DispositivoController) Eliminar(gctx *gin.Context) {
 
 func (ctrl *DispositivoController) RecibirLecturaIoT(gctx *gin.Context) {
 	var payload struct {
-		DeviceID       string  `json:"deviceId"`
-		Voltaje        float64 `json:"voltaje"`
-		Corriente      float64 `json:"corriente"`
-		Potencia       float64 `json:"potencia"`
-		Energia        float64 `json:"energia"`
-		Frecuencia     float64 `json:"frecuencia"`
-		FactorPotencia float64 `json:"factorPotencia"`
-		Timestamp      int64   `json:"timestamp"`
+		DeviceID       string   `json:"deviceId"`
+		Voltaje        float64  `json:"voltaje"`
+		Corriente      float64  `json:"corriente"`
+		Potencia       float64  `json:"potencia"`
+		Energia        float64  `json:"energia"`
+		Frecuencia     float64  `json:"frecuencia"`
+		FactorPotencia float64  `json:"factorPotencia"`
+		Latitud        *float64 `json:"latitud"`
+		Longitud       *float64 `json:"longitud"`
+		Timestamp      int64    `json:"timestamp"`
 	}
 
 	if err := gctx.ShouldBindJSON(&payload); err != nil {
@@ -376,11 +378,18 @@ func (ctrl *DispositivoController) RecibirLecturaIoT(gctx *gin.Context) {
 		FactorPotencia: payload.FactorPotencia,
 		Timestamp:      parseIoTTimestamp(payload.Timestamp),
 	}
+
+	// Solo tratamos el GPS como ubicación válida cuando ambos valores están
+	// presentes, dentro de rango y no son (0,0) (típico "sin fix" del ESP32).
+	lat, lng := normalizeIoTUbicacion(payload.Latitud, payload.Longitud)
+
 	if ingestor := iot.DefaultReadingIngestor(); ingestor != nil {
 		if !ingestor.Enqueue(iot.Reading{
 			DeviceID:   payload.DeviceID,
 			Lectura:    lectura,
 			ReceivedAt: time.Now().UTC(),
+			Latitud:    lat,
+			Longitud:   lng,
 		}) {
 			gctx.JSON(http.StatusServiceUnavailable, gin.H{"error": "cola de lecturas saturada"})
 			return
@@ -398,6 +407,8 @@ func (ctrl *DispositivoController) RecibirLecturaIoT(gctx *gin.Context) {
 		payload.Energia,
 		payload.Frecuencia,
 		payload.FactorPotencia,
+		lat,
+		lng,
 	)
 	if err != nil {
 		gctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
@@ -405,6 +416,22 @@ func (ctrl *DispositivoController) RecibirLecturaIoT(gctx *gin.Context) {
 	}
 
 	gctx.JSON(http.StatusOK, gin.H{"ok": true})
+}
+
+// normalizeIoTUbicacion valida las coordenadas GPS reportadas por el ESP32.
+// Devuelve (nil, nil) si faltan, están fuera de rango o son (0,0) — que suele
+// indicar que el módulo GPS aún no tiene fix.
+func normalizeIoTUbicacion(lat, lng *float64) (*float64, *float64) {
+	if lat == nil || lng == nil {
+		return nil, nil
+	}
+	if *lat < -90 || *lat > 90 || *lng < -180 || *lng > 180 {
+		return nil, nil
+	}
+	if *lat == 0 && *lng == 0 {
+		return nil, nil
+	}
+	return lat, lng
 }
 
 func parseIoTTimestamp(timestamp int64) time.Time {

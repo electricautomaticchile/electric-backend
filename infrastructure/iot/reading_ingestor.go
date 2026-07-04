@@ -18,6 +18,10 @@ type Reading struct {
 	DeviceID   string
 	Lectura    *entities.LecturaDispositivo
 	ReceivedAt time.Time
+	// Latitud/Longitud son opcionales: solo se persisten como última ubicación
+	// conocida del dispositivo cuando el ESP32 reporta GPS en la lectura.
+	Latitud  *float64
+	Longitud *float64
 }
 
 type ReadingIngestor struct {
@@ -223,16 +227,23 @@ func (i *ReadingIngestor) flush(pending map[string]Reading) {
 
 	models := make([]mongo.WriteModel, 0, len(pending))
 	for _, reading := range pending {
+		set := bson.M{
+			"ultimaLectura":      reading.Lectura,
+			"fechaActualizacion": reading.ReceivedAt,
+		}
+		// Persistir última ubicación conocida solo si la lectura trae GPS válido.
+		if reading.Latitud != nil && reading.Longitud != nil {
+			set["latitud"] = *reading.Latitud
+			set["longitud"] = *reading.Longitud
+		}
+
 		models = append(models, mongo.NewUpdateOneModel().
 			SetFilter(bson.M{
 				"numeroDispositivo": reading.DeviceID,
 				"activo":            true,
 			}).
 			SetUpdate(bson.M{
-				"$set": bson.M{
-					"ultimaLectura":      reading.Lectura,
-					"fechaActualizacion": reading.ReceivedAt,
-				},
+				"$set": set,
 			}),
 		)
 	}

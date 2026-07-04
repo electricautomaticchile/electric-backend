@@ -181,7 +181,7 @@ func (s *DispositivoService) ActualizarUltimaLectura(ctx context.Context, numero
 		Timestamp:      time.Now(),
 	}
 
-	dispositivo, err := s.dispositivoRepo.UpdateUltimaLectura(ctx, numeroDispositivo, lectura)
+	dispositivo, err := s.dispositivoRepo.UpdateUltimaLectura(ctx, numeroDispositivo, lectura, r.Latitud, r.Longitud)
 	if err != nil {
 		return err
 	}

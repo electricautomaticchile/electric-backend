@@ -220,6 +220,8 @@ type fakeDispositivoRepo struct {
 	reading  *entities.LecturaDispositivo
 	created  *entities.DispositivoEntity
 	createID primitive.ObjectID
+	latitud  *float64
+	longitud *float64
 }
 
 func (f *fakeDispositivoRepo) FindAll(context.Context, string) ([]*entities.DispositivoEntity, error) {
@@ -248,8 +250,10 @@ func (f *fakeDispositivoRepo) Create(_ context.Context, dispositivo *entities.Di
 func (f *fakeDispositivoRepo) Update(context.Context, string, *entities.DispositivoEntity) error {
 	return nil
 }
-func (f *fakeDispositivoRepo) UpdateUltimaLectura(_ context.Context, _ string, lectura *entities.LecturaDispositivo) (*entities.DispositivoEntity, error) {
+func (f *fakeDispositivoRepo) UpdateUltimaLectura(_ context.Context, _ string, lectura *entities.LecturaDispositivo, latitud, longitud *float64) (*entities.DispositivoEntity, error) {
 	f.reading = lectura
+	f.latitud = latitud
+	f.longitud = longitud
 	return f.device, nil
 }
 func (f *fakeDispositivoRepo) CambiarEstado(context.Context, string, string) error { return nil }
@@ -296,17 +300,25 @@ func TestActualizarLecturaIoTStoresReading(t *testing.T) {
 	dispositivoRepo := &fakeDispositivoRepo{device: &entities.DispositivoEntity{ID: primitive.NewObjectID()}}
 	service := NewDispositivoService(dispositivoRepo, &fakeClienteRepo{}, nil)
 
+	lat := -33.4489
+	lng := -70.6693
 	err := service.ActualizarUltimaLectura(context.Background(), "MED-1", &recipe.ActualizarLecturaRecipe{
 		Voltage:     220,
 		Current:     10,
 		ActivePower: 2000,
 		Energy:      12.5,
 		Cost:        1500,
+		Latitud:     &lat,
+		Longitud:    &lng,
 	})
 	if err != nil {
 		t.Fatalf("lectura IoT deberia pasar: %v", err)
 	}
 	if dispositivoRepo.reading == nil || dispositivoRepo.reading.Energy != 12.5 || dispositivoRepo.reading.ActivePower != 2000 {
 		t.Fatal("lectura IoT no fue mapeada correctamente")
+	}
+	if dispositivoRepo.latitud == nil || dispositivoRepo.longitud == nil ||
+		*dispositivoRepo.latitud != lat || *dispositivoRepo.longitud != lng {
+		t.Fatal("ubicacion GPS de la lectura IoT no fue persistida")
 	}
 }

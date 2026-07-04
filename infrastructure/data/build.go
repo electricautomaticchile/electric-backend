@@ -16,6 +16,7 @@ type DataContainer struct {
 	UsuarioEmpresaRepo *UsuarioEmpresaRepository
 	RefreshTokenRepo   *RefreshTokenRepository
 	AuditLogRepo       *AuditLogRepository
+	FCMTokenRepo       *FCMTokenRepository
 }
 
 func Build() *DataContainer {
@@ -33,5 +34,6 @@ func Build() *DataContainer {
 		UsuarioEmpresaRepo: NewUsuarioEmpresaRepository(),
 		RefreshTokenRepo:   NewRefreshTokenRepository(),
 		AuditLogRepo:       NewAuditLogRepository(),
+		FCMTokenRepo:       NewFCMTokenRepository(),
 	}
 }

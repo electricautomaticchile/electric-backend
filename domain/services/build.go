@@ -4,6 +4,7 @@ import (
 	"electric-backend/infrastructure/data"
 	"electric-backend/infrastructure/email"
 	"electric-backend/infrastructure/eventbus"
+	"electric-backend/infrastructure/push"
 	"electric-backend/infrastructure/sms"
 )
 
@@ -27,6 +28,8 @@ type ServiceContainer struct {
 	NotificacionSMSService *NotificacionSMSService
 	AuditLogService        *AuditLogService
 	IAService              *IAService
+	FCMTokenService        *FCMTokenService
+	PushService            push.PushService
 }
 
 // ExternalDeps groups external service dependencies.
@@ -34,6 +37,7 @@ type ExternalDeps struct {
 	WSPublisher *eventbus.Publisher
 	EmailSvc    email.EmailService
 	SMSSvc      sms.SMSService
+	PushSvc     push.PushService
 }
 
 func Build(repos *data.DataContainer, ext *ExternalDeps) *ServiceContainer {
@@ -55,6 +59,7 @@ func Build(repos *data.DataContainer, ext *ExternalDeps) *ServiceContainer {
 	usuarioEmpresaService := NewUsuarioEmpresaService(repos.UsuarioEmpresaRepo, ext.EmailSvc)
 	notificacionSMSService := NewNotificacionSMSService(repos.ClienteRepo, repos.BoletaRepo, repos.DispositivoRepo, ext.SMSSvc)
 	auditLogService := NewAuditLogService(repos.AuditLogRepo)
+	fcmTokenService := NewFCMTokenService(repos.FCMTokenRepo)
 
 	return &ServiceContainer{
 		AuthService:            authService,
@@ -75,5 +80,7 @@ func Build(repos *data.DataContainer, ext *ExternalDeps) *ServiceContainer {
 		NotificacionSMSService: notificacionSMSService,
 		AuditLogService:        auditLogService,
 		IAService:              NewIAService(),
+		FCMTokenService:        fcmTokenService,
+		PushService:            ext.PushSvc,
 	}
 }

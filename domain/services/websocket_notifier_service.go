@@ -73,6 +73,9 @@ func (s *WebSocketNotifierService) NotificarActualizacionDispositivo(dispositivo
 			"nombre":            dispositivo.Nombre,
 			"estado":            dispositivo.Estado,
 			"clienteId":         dispositivo.ClienteID.Hex(),
+			"latitud":           dispositivo.Latitud,
+			"longitud":          dispositivo.Longitud,
+			"direccion":         dispositivo.Direccion,
 		},
 	}
 

@@ -282,6 +282,22 @@ func CreateIndexes(db *mongo.Database) error {
 			},
 		},
 		{
+			collection: "fcm_tokens",
+			indexes: []mongo.IndexModel{
+				{
+					Keys: bson.D{
+						{Key: "token", Value: 1},
+					},
+					Options: options.Index().SetUnique(true),
+				},
+				{
+					Keys: bson.D{
+						{Key: "userId", Value: 1},
+					},
+				},
+			},
+		},
+		{
 			collection: "leads",
 			indexes: []mongo.IndexModel{
 				{

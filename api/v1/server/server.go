@@ -20,14 +20,13 @@ func SetupRouter(
 	arduinoBridge *arduino.SerialBridge,
 ) *gin.Engine {
 	router := gin.New()
-	router.Use(gin.LoggerWithConfig(gin.LoggerConfig{
-		SkipPaths: []string{
-			"/health",
-			"/api/leads",
-			"/api/iot/lectura",
-			"/api/iot/comando-ejecutado",
-		},
-	}))
+	// Logging estructurado con zerolog (JSON en producción).
+	router.Use(middleware.RequestLogger(
+		"/health",
+		"/api/leads",
+		"/api/iot/lectura",
+		"/api/iot/comando-ejecutado",
+	))
 	router.Use(gin.Recovery())
 	router.Use(middleware.CORSMiddleware())
 	router.Use(func(c *gin.Context) {

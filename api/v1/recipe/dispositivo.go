@@ -25,6 +25,9 @@ type ActualizarLecturaRecipe struct {
 	Cost           float64 `json:"cost" binding:"min=0"`
 	Frecuencia     float64 `json:"frecuencia" binding:"min=0,max=100"`
 	FactorPotencia float64 `json:"factorPotencia" binding:"min=0,max=1"`
+	// Ubicación GPS opcional reportada por el ESP32 en la lectura.
+	Latitud  *float64 `json:"latitud,omitempty" binding:"omitempty,min=-90,max=90"`
+	Longitud *float64 `json:"longitud,omitempty" binding:"omitempty,min=-180,max=180"`
 }
 
 type CambiarEstadoDispositivoRecipe struct {
