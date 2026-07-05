@@ -29,6 +29,7 @@ type ServiceContainer struct {
 	AuditLogService        *AuditLogService
 	IAService              *IAService
 	FCMTokenService        *FCMTokenService
+	FeatureFlagService     *FeatureFlagService
 	PushService            push.PushService
 }
 
@@ -60,6 +61,7 @@ func Build(repos *data.DataContainer, ext *ExternalDeps) *ServiceContainer {
 	notificacionSMSService := NewNotificacionSMSService(repos.ClienteRepo, repos.BoletaRepo, repos.DispositivoRepo, ext.SMSSvc)
 	auditLogService := NewAuditLogService(repos.AuditLogRepo)
 	fcmTokenService := NewFCMTokenService(repos.FCMTokenRepo)
+	featureFlagService := NewFeatureFlagService(repos.FeatureFlagRepo)
 
 	return &ServiceContainer{
 		AuthService:            authService,
@@ -81,6 +83,7 @@ func Build(repos *data.DataContainer, ext *ExternalDeps) *ServiceContainer {
 		AuditLogService:        auditLogService,
 		IAService:              NewIAService(),
 		FCMTokenService:        fcmTokenService,
+		FeatureFlagService:     featureFlagService,
 		PushService:            ext.PushSvc,
 	}
 }

@@ -17,6 +17,7 @@ type DataContainer struct {
 	RefreshTokenRepo   *RefreshTokenRepository
 	AuditLogRepo       *AuditLogRepository
 	FCMTokenRepo       *FCMTokenRepository
+	FeatureFlagRepo    *FeatureFlagRepository
 }
 
 func Build() *DataContainer {
@@ -35,5 +36,6 @@ func Build() *DataContainer {
 		RefreshTokenRepo:   NewRefreshTokenRepository(),
 		AuditLogRepo:       NewAuditLogRepository(),
 		FCMTokenRepo:       NewFCMTokenRepository(),
+		FeatureFlagRepo:    NewFeatureFlagRepository(),
 	}
 }
