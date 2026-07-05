@@ -26,6 +26,7 @@ import (
 	"github.com/aws/aws-lambda-go/lambda"
 	awsconfig "github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
+	"github.com/aws/aws-sdk-go-v2/service/secretsmanager"
 	"github.com/aws/aws-sdk-go-v2/service/ssm"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
@@ -48,15 +49,25 @@ func handler(ctx context.Context) (string, error) {
 		return "", fmt.Errorf("cargando config AWS: %w", err)
 	}
 
-	// 1. URI de Mongo. Preferimos la variable de entorno MONGODB_URI (cifrada en
-	//    reposo por Lambda). Como fallback, si se define SSM_PARAM_NAME, se lee
-	//    de SSM Parameter Store (SecureString) — útil si más adelante se migra el
-	//    secreto a un almacén gestionado.
-	uri := os.Getenv("MONGODB_URI")
-	if uri == "" {
-		if ssmParam == "" {
-			return "", fmt.Errorf("falta MONGODB_URI (o SSM_PARAM_NAME)")
+	// 1. URI de Mongo. Orden de preferencia:
+	//    a) SECRET_ID       -> AWS Secrets Manager (recomendado).
+	//    b) MONGODB_URI     -> variable de entorno (cifrada en reposo).
+	//    c) SSM_PARAM_NAME  -> SSM Parameter Store (SecureString).
+	var uri string
+	switch {
+	case os.Getenv("SECRET_ID") != "":
+		secretID := os.Getenv("SECRET_ID")
+		sm := secretsmanager.NewFromConfig(awsCfg)
+		out, err := sm.GetSecretValue(ctx, &secretsmanager.GetSecretValueInput{SecretId: &secretID})
+		if err != nil {
+			return "", fmt.Errorf("leyendo secreto %s: %w", secretID, err)
 		}
+		if out.SecretString != nil {
+			uri = *out.SecretString
+		}
+	case os.Getenv("MONGODB_URI") != "":
+		uri = os.Getenv("MONGODB_URI")
+	case ssmParam != "":
 		ssmClient := ssm.NewFromConfig(awsCfg)
 		withDecryption := true
 		param, err := ssmClient.GetParameter(ctx, &ssm.GetParameterInput{
@@ -67,6 +78,11 @@ func handler(ctx context.Context) (string, error) {
 			return "", fmt.Errorf("leyendo SSM %s: %w", ssmParam, err)
 		}
 		uri = *param.Parameter.Value
+	default:
+		return "", fmt.Errorf("falta SECRET_ID, MONGODB_URI o SSM_PARAM_NAME")
+	}
+	if uri == "" {
+		return "", fmt.Errorf("URI de Mongo vacía")
 	}
 
 	// 2. Conexión a Mongo.
