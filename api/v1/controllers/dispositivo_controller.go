@@ -369,6 +369,14 @@ func (ctrl *DispositivoController) RecibirLecturaIoT(gctx *gin.Context) {
 		return
 	}
 
+	// Idempotencia: si el ESP32 reenvía una lectura ya recibida (mismo deviceId
+	// + timestamp del dispositivo tras un corte de red), la descartamos para no
+	// duplicar consumo ni métricas. Solo aplica si el dispositivo mandó su epoch.
+	if iot.IsDuplicateReading(payload.DeviceID, payload.Timestamp) {
+		gctx.JSON(http.StatusOK, gin.H{"ok": true, "duplicate": true})
+		return
+	}
+
 	lectura := &entities.LecturaDispositivo{
 		Voltage:        payload.Voltaje,
 		Current:        payload.Corriente,
