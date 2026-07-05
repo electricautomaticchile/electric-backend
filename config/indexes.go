@@ -115,32 +115,6 @@ func CreateIndexes(db *mongo.Database) error {
 			},
 		},
 		{
-			collection: "alertas",
-			indexes: []mongo.IndexModel{
-				{
-					Keys: bson.D{
-						{Key: "empresaId", Value: 1},
-					},
-				},
-				{
-					Keys: bson.D{
-						{Key: "dispositivoId", Value: 1},
-					},
-				},
-				{
-					Keys: bson.D{
-						{Key: "empresaId", Value: 1},
-						{Key: "estado", Value: 1},
-					},
-				},
-				{
-					Keys: bson.D{
-						{Key: "fechaCreacion", Value: -1},
-					},
-				},
-			},
-		},
-		{
 			collection: "tickets",
 			indexes: []mongo.IndexModel{
 				{
@@ -200,23 +174,6 @@ func CreateIndexes(db *mongo.Database) error {
 					Keys: bson.D{
 						{Key: "empresaId", Value: 1},
 						{Key: "rol", Value: 1},
-					},
-				},
-			},
-		},
-		{
-			collection: "lecturas",
-			indexes: []mongo.IndexModel{
-				{
-					Keys: bson.D{
-						{Key: "dispositivoId", Value: 1},
-						{Key: "timestamp", Value: -1},
-					},
-				},
-				{
-					Keys: bson.D{
-						{Key: "clienteId", Value: 1},
-						{Key: "timestamp", Value: -1},
 					},
 				},
 			},

@@ -58,9 +58,9 @@ func (ra *ReadingAggregator) Initialize() error {
 	ra.collection = config.MongoDB.Collection(entities.LecturaEntity{}.CollectionName())
 	ra.collectionAgg = config.MongoDB.Collection(entities.LecturaAgregadaEntity{}.CollectionName())
 
-	if err := ra.ensureTimeSeriesCollection(); err != nil {
-		log.Printf("⚠️ No se pudo crear Time Series Collection: %v", err)
-	}
+	// La colección cruda 'lecturas' quedó en desuso: la ingesta 4G solo actualiza
+	// dispositivos.ultimaLectura y el histórico se guarda agregado en
+	// 'lecturas_agregadas'. Por eso ya no creamos la time-series 'lecturas'.
 
 	if err := ra.ensureIndexes(); err != nil {
 		log.Printf("⚠️ Error creando índices: %v", err)
