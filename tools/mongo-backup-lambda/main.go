@@ -25,9 +25,14 @@ import (
 
 	"github.com/aws/aws-lambda-go/lambda"
 	awsconfig "github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/aws/aws-sdk-go-v2/service/secretsmanager"
+	"github.com/aws/aws-sdk-go-v2/service/sesv2"
+	sestypes "github.com/aws/aws-sdk-go-v2/service/sesv2/types"
 	"github.com/aws/aws-sdk-go-v2/service/ssm"
+	"sort"
+	"strings"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
@@ -150,6 +155,123 @@ func handler(ctx context.Context) (string, error) {
 	return msg, nil
 }
 
+// reportHandler arma un resumen semanal de los backups de los últimos 7 días
+// (revisando S3) y lo envía por email vía SES. Se activa con MODE=report.
+//
+// Variables de entorno: S3_BUCKET, REPORT_TO, REPORT_FROM.
+func reportHandler(ctx context.Context) (string, error) {
+	bucket := os.Getenv("S3_BUCKET")
+	to := os.Getenv("REPORT_TO")
+	from := os.Getenv("REPORT_FROM")
+	if bucket == "" || to == "" || from == "" {
+		return "", fmt.Errorf("faltan S3_BUCKET, REPORT_TO o REPORT_FROM")
+	}
+
+	awsCfg, err := awsconfig.LoadDefaultConfig(ctx)
+	if err != nil {
+		return "", fmt.Errorf("cargando config AWS: %w", err)
+	}
+	s3Client := s3.NewFromConfig(awsCfg)
+
+	// Listar todos los objetos bajo backups/ y agrupar por corrida
+	// (prefijo backups/YYYY-MM-DD/HHMMSS/).
+	runs := map[string]int64{} // prefijoCorrida -> bytes
+	var token *string
+	for {
+		out, err := s3Client.ListObjectsV2(ctx, &s3.ListObjectsV2Input{
+			Bucket:            &bucket,
+			Prefix:            aws.String("backups/"),
+			ContinuationToken: token,
+		})
+		if err != nil {
+			return "", fmt.Errorf("listando S3: %w", err)
+		}
+		for _, o := range out.Contents {
+			parts := strings.Split(*o.Key, "/")
+			if len(parts) < 4 {
+				continue
+			}
+			runPrefix := strings.Join(parts[:3], "/") // backups/YYYY-MM-DD/HHMMSS
+			size := int64(0)
+			if o.Size != nil {
+				size = *o.Size
+			}
+			runs[runPrefix] += size
+		}
+		if out.IsTruncated != nil && *out.IsTruncated {
+			token = out.NextContinuationToken
+		} else {
+			break
+		}
+	}
+
+	// Filtrar corridas de los últimos 7 días.
+	limite := time.Now().UTC().AddDate(0, 0, -7)
+	type corrida struct {
+		prefix string
+		fecha  time.Time
+		bytes  int64
+	}
+	var recientes []corrida
+	for prefix, bytes := range runs {
+		parts := strings.Split(prefix, "/") // backups, YYYY-MM-DD, HHMMSS
+		if len(parts) < 3 {
+			continue
+		}
+		f, err := time.Parse("2006-01-02 150405", parts[1]+" "+parts[2])
+		if err != nil {
+			continue
+		}
+		if f.After(limite) {
+			recientes = append(recientes, corrida{prefix, f, bytes})
+		}
+	}
+	sort.Slice(recientes, func(i, j int) bool { return recientes[i].fecha.After(recientes[j].fecha) })
+
+	var totalBytes int64
+	for _, c := range recientes {
+		totalBytes += c.bytes
+	}
+	ultima := "ninguna"
+	if len(recientes) > 0 {
+		ultima = recientes[0].fecha.Format("2006-01-02 15:04 UTC")
+	}
+
+	estado := "✅ OK"
+	if len(recientes) == 0 {
+		estado = "⚠️ SIN BACKUPS EN 7 DÍAS"
+	}
+
+	asunto := fmt.Sprintf("Resumen semanal de backups MongoDB: %s", estado)
+	var sb strings.Builder
+	fmt.Fprintf(&sb, "Resumen de backups de los últimos 7 días\n\n")
+	fmt.Fprintf(&sb, "Estado: %s\n", estado)
+	fmt.Fprintf(&sb, "Backups realizados: %d\n", len(recientes))
+	fmt.Fprintf(&sb, "Último backup: %s\n", ultima)
+	fmt.Fprintf(&sb, "Tamaño total (7 días): %.2f MB\n\n", float64(totalBytes)/(1024*1024))
+	fmt.Fprintf(&sb, "Bucket: s3://%s/backups/\nRetención: 30 días.\n", bucket)
+	texto := sb.String()
+
+	ses := sesv2.NewFromConfig(awsCfg)
+	_, err = ses.SendEmail(ctx, &sesv2.SendEmailInput{
+		FromEmailAddress: &from,
+		Destination:      &sestypes.Destination{ToAddresses: []string{to}},
+		Content: &sestypes.EmailContent{Simple: &sestypes.Message{
+			Subject: &sestypes.Content{Data: &asunto, Charset: aws.String("UTF-8")},
+			Body:    &sestypes.Body{Text: &sestypes.Content{Data: &texto, Charset: aws.String("UTF-8")}},
+		}},
+	})
+	if err != nil {
+		return "", fmt.Errorf("enviando email SES: %w", err)
+	}
+	log.Printf("reporte semanal enviado a %s: %d backups, %.2f MB", to, len(recientes), float64(totalBytes)/(1024*1024))
+	return asunto, nil
+}
+
 func main() {
+	if os.Getenv("MODE") == "report" {
+		lambda.Start(reportHandler)
+		return
+	}
 	lambda.Start(handler)
 }
