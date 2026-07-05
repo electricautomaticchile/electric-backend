@@ -19,6 +19,9 @@ type MonitoreoService struct {
 	// plataforma web: se persisten in-app y se publican en tiempo real por
 	// WebSocket. NO se envían por email ni SMS (decisión de producto).
 	wsNotifier *WebSocketNotifierService
+	// umbralService resuelve los umbrales de alerta por empresa (con fallback
+	// a los defaults del sistema si la empresa no tiene configuración propia).
+	umbralService *UmbralService
 	// Throttle: última alerta por dispositivo para evitar spam
 	ultimaAlerta     map[string]time.Time
 	throttleDuracion time.Duration
@@ -30,6 +33,7 @@ func NewMonitoreoService(
 	clienteRepo ports.PortCliente,
 	empresaRepo ports.PortEmpresa,
 	wsNotifier *WebSocketNotifierService,
+	umbralService *UmbralService,
 ) *MonitoreoService {
 	return &MonitoreoService{
 		notificacionRepo: notificacionRepo,
@@ -37,9 +41,19 @@ func NewMonitoreoService(
 		clienteRepo:      clienteRepo,
 		empresaRepo:      empresaRepo,
 		wsNotifier:       wsNotifier,
+		umbralService:    umbralService,
 		ultimaAlerta:     make(map[string]time.Time),
 		throttleDuracion: 24 * time.Hour, // Máximo 1 alerta por dispositivo por día
 	}
+}
+
+// resolverUmbrales obtiene los umbrales de la empresa, o los defaults si el
+// servicio de umbrales no está disponible (por seguridad ante wiring parcial).
+func (s *MonitoreoService) resolverUmbrales(ctx context.Context, empresaID string) Umbrales {
+	if s.umbralService == nil {
+		return UmbralesPorDefecto()
+	}
+	return s.umbralService.ObtenerUmbrales(ctx, empresaID)
 }
 
 func (s *MonitoreoService) VerificarConsumoAnormal(ctx context.Context, empresaID string) error {
@@ -48,6 +62,8 @@ func (s *MonitoreoService) VerificarConsumoAnormal(ctx context.Context, empresaI
 		return err
 	}
 
+	umbrales := s.resolverUmbrales(ctx, empresaID)
+
 	for _, dispositivo := range dispositivos {
 		if dispositivo.UltimaLectura == nil {
 			continue
@@ -55,7 +71,7 @@ func (s *MonitoreoService) VerificarConsumoAnormal(ctx context.Context, empresaI
 
 		consumoActual := dispositivo.UltimaLectura.Energy
 		
-		if consumoActual > 100 {
+		if consumoActual > umbrales.ConsumoMax {
 			titulo := fmt.Sprintf("Consumo elevado detectado - Dispositivo %s", dispositivo.NumeroDispositivo)
 			mensaje := fmt.Sprintf("El dispositivo %s ha registrado un consumo de %.2f kWh, superando el umbral normal.", 
 				dispositivo.Nombre, consumoActual)
@@ -74,7 +90,7 @@ func (s *MonitoreoService) VerificarConsumoAnormal(ctx context.Context, empresaI
 				FechaCreacion:  time.Now(),
 				Metadatos: map[string]interface{}{
 					"consumo":           consumoActual,
-					"umbral":            100.0,
+					"umbral":            umbrales.ConsumoMax,
 					"numeroDispositivo": dispositivo.NumeroDispositivo,
 					"dispositivoId":     dispositivo.ID.Hex(),
 				},
@@ -122,6 +138,8 @@ func (s *MonitoreoService) VerificarPatronesAnormales(ctx context.Context, empre
 		return err
 	}
 
+	umbrales := s.resolverUmbrales(ctx, empresaID)
+
 	for _, dispositivo := range dispositivos {
 		if dispositivo.UltimaLectura == nil {
 			continue
@@ -140,10 +158,10 @@ func (s *MonitoreoService) VerificarPatronesAnormales(ctx context.Context, empre
 		alertaEnviada := false
 
 		if dispositivo.UltimaLectura.Voltage > 0 &&
-			(dispositivo.UltimaLectura.Voltage < 200 || dispositivo.UltimaLectura.Voltage > 240) {
+			(dispositivo.UltimaLectura.Voltage < umbrales.VoltajeMin || dispositivo.UltimaLectura.Voltage > umbrales.VoltajeMax) {
 			titulo := fmt.Sprintf("Voltaje anormal - Dispositivo %s", dispositivo.NumeroDispositivo)
-			mensaje := fmt.Sprintf("El dispositivo %s registra %.1fV (rango normal: 200-240V).",
-				dispositivo.Nombre, dispositivo.UltimaLectura.Voltage)
+			mensaje := fmt.Sprintf("El dispositivo %s registra %.1fV (rango normal: %.0f-%.0fV).",
+				dispositivo.Nombre, dispositivo.UltimaLectura.Voltage, umbrales.VoltajeMin, umbrales.VoltajeMax)
 
 			empresaOID, _ := primitive.ObjectIDFromHex(empresaID)
 			notif := &entities.NotificacionEntity{
@@ -161,10 +179,10 @@ func (s *MonitoreoService) VerificarPatronesAnormales(ctx context.Context, empre
 			alertaEnviada = true
 		}
 
-		if !alertaEnviada && dispositivo.UltimaLectura.Current > 50 {
+		if !alertaEnviada && dispositivo.UltimaLectura.Current > umbrales.CorrienteMax {
 			titulo := fmt.Sprintf("Corriente elevada - Dispositivo %s", dispositivo.NumeroDispositivo)
-			mensaje := fmt.Sprintf("El dispositivo %s registra %.1fA (límite: 50A).",
-				dispositivo.Nombre, dispositivo.UltimaLectura.Current)
+			mensaje := fmt.Sprintf("El dispositivo %s registra %.1fA (límite: %.0fA).",
+				dispositivo.Nombre, dispositivo.UltimaLectura.Current, umbrales.CorrienteMax)
 
 			empresaOID, _ := primitive.ObjectIDFromHex(empresaID)
 			notif := &entities.NotificacionEntity{

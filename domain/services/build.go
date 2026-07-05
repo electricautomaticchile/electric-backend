@@ -30,6 +30,7 @@ type ServiceContainer struct {
 	IAService              *IAService
 	FCMTokenService        *FCMTokenService
 	FeatureFlagService     *FeatureFlagService
+	UmbralService          *UmbralService
 	PushService            push.PushService
 }
 
@@ -52,7 +53,8 @@ func Build(repos *data.DataContainer, ext *ExternalDeps) *ServiceContainer {
 	boletaService := NewBoletaService(repos.BoletaRepo, repos.ClienteRepo, ext.EmailSvc)
 	ticketService := NewTicketService(repos.TicketRepo, repos.NotificacionRepo, ext.EmailSvc, repos.ClienteRepo, repos.EmpresaRepo)
 	cotizacionService := NewCotizacionService(repos.CotizacionRepo)
-	monitoreoService := NewMonitoreoService(repos.NotificacionRepo, repos.DispositivoRepo, repos.ClienteRepo, repos.EmpresaRepo, wsNotifier)
+	umbralService := NewUmbralService(repos.UmbralAlertaRepo)
+	monitoreoService := NewMonitoreoService(repos.NotificacionRepo, repos.DispositivoRepo, repos.ClienteRepo, repos.EmpresaRepo, wsNotifier, umbralService)
 	tarifaService := NewTarifaService(repos.TarifaRepo)
 	consumoService := NewConsumoService(repos.ClienteRepo, repos.TarifaRepo)
 	dashboardService := NewDashboardService(repos.ClienteRepo, repos.DispositivoRepo, repos.NotificacionRepo, repos.TicketRepo, repos.EstadisticaRepo)
@@ -84,6 +86,7 @@ func Build(repos *data.DataContainer, ext *ExternalDeps) *ServiceContainer {
 		IAService:              NewIAService(),
 		FCMTokenService:        fcmTokenService,
 		FeatureFlagService:     featureFlagService,
+		UmbralService:          umbralService,
 		PushService:            ext.PushSvc,
 	}
 }

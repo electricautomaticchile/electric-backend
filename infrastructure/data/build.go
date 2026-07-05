@@ -18,6 +18,7 @@ type DataContainer struct {
 	AuditLogRepo       *AuditLogRepository
 	FCMTokenRepo       *FCMTokenRepository
 	FeatureFlagRepo    *FeatureFlagRepository
+	UmbralAlertaRepo   *UmbralAlertaRepository
 }
 
 func Build() *DataContainer {
@@ -37,5 +38,6 @@ func Build() *DataContainer {
 		AuditLogRepo:       NewAuditLogRepository(),
 		FCMTokenRepo:       NewFCMTokenRepository(),
 		FeatureFlagRepo:    NewFeatureFlagRepository(),
+		UmbralAlertaRepo:   NewUmbralAlertaRepository(),
 	}
 }
