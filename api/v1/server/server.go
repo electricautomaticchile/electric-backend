@@ -5,6 +5,7 @@ import (
 	"electric-backend/domain/services"
 	"electric-backend/infrastructure/arduino"
 	"electric-backend/infrastructure/data"
+	"electric-backend/infrastructure/metrics"
 	"electric-backend/infrastructure/middleware"
 	"electric-backend/types"
 	"net/http"
@@ -37,8 +38,11 @@ func SetupRouter(
 	router.Use(middleware.AuditMiddleware(svc.AuditLogService))
 	router.Use(middleware.ErrorHandler())
 	router.Use(middleware.EndpointRateLimitMiddleware(rateLimits()))
+	// Contabiliza peticiones HTTP por código para el endpoint /metrics.
+	router.Use(metrics.HTTPMiddleware())
 
 	registerHealthRoutes(router, arduinoBridge)
+	registerMetricsRoute(router)
 
 	api := router.Group("/api")
 	registerRoutes(api, facadeContainer, svc, repos, arduinoBridge)
