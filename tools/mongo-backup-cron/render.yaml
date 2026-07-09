@@ -1,0 +1,31 @@
+# Blueprint de ejemplo para el Render Cron Job de backup de MongoDB.
+# NO lo dejes en la raíz del repo si ya gestionas otros servicios de Render
+# manualmente (podría intentar administrarlos). Úsalo como referencia o crea el
+# Cron Job desde el dashboard apuntando a este Dockerfile.
+#
+# Los secretos (sync: false) se cargan en el dashboard de Render, NO en el repo.
+services:
+  - type: cron
+    name: mongo-backup-cron
+    runtime: docker
+    # Diario 07:00 UTC (mismo horario que la Lambda actual).
+    schedule: "0 7 * * *"
+    dockerfilePath: tools/mongo-backup-cron/Dockerfile
+    dockerContext: tools/mongo-backup-cron
+    envVars:
+      - key: MONGODB_URI
+        sync: false
+      - key: MONGO_DB
+        value: electricautomaticchile
+      - key: S3_BUCKET
+        sync: false
+      # Cloudflare R2 (recomendado, off-AWS): https://<account_id>.r2.cloudflarestorage.com
+      # Dejar vacío para usar AWS S3.
+      - key: S3_ENDPOINT
+        sync: false
+      - key: S3_REGION
+        value: auto
+      - key: AWS_ACCESS_KEY_ID
+        sync: false
+      - key: AWS_SECRET_ACCESS_KEY
+        sync: false
