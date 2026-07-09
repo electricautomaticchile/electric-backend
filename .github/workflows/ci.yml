@@ -28,6 +28,10 @@ jobs:
         run: go vet ./...
       - name: Build
         run: go build ./...
+      - name: Vulnerabilidades de dependencias (govulncheck)
+        run: |
+          go install golang.org/x/vuln/cmd/govulncheck@latest
+          "$(go env GOPATH)/bin/govulncheck" ./...
 
   rollback:
     if: github.event_name == 'workflow_dispatch' && inputs.rollback_sha != ''

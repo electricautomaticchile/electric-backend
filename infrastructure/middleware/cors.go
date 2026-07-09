@@ -13,12 +13,19 @@ import (
 func CORSMiddleware() gin.HandlerFunc {
 	// Limpiar espacios y tabs de cada origen
 	rawOrigins := strings.Split(config.AppConfig.CORSOrigins, ",")
+	isProd := config.AppConfig.Environment == "production"
 	origins := make([]string, 0, len(rawOrigins))
 	for _, o := range rawOrigins {
 		trimmed := strings.TrimSpace(o)
-		if trimmed != "" {
-			origins = append(origins, trimmed)
+		if trimmed == "" {
+			continue
 		}
+		// En producción no permitimos orígenes de desarrollo (localhost/127.0.0.1),
+		// aunque queden en CORS_ORIGINS por error.
+		if isProd && (strings.Contains(trimmed, "localhost") || strings.Contains(trimmed, "127.0.0.1")) {
+			continue
+		}
+		origins = append(origins, trimmed)
 	}
 
 	corsConfig := cors.Config{
